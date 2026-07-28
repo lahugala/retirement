@@ -167,8 +167,8 @@
         <a-card>
           <template #extra>
             <a-space>
-              <a-date-picker v-model:value="rmDateFrom" placeholder="From" />
-              <a-date-picker v-model:value="rmDateTo" placeholder="To" />
+              <a-date-picker v-model:value="rmDateFrom" placeholder="From" value-format="YYYY-MM-DD" />
+              <a-date-picker v-model:value="rmDateTo" placeholder="To" value-format="YYYY-MM-DD" />
               <a-button type="primary" @click="fetchRetiredMembers">Search</a-button>
               <a-button @click="exportCSV(retiredMembers, 'retired-members.csv')" :disabled="retiredMembers.length === 0">Export CSV</a-button>
             </a-space>
@@ -306,8 +306,8 @@ const eventOptions = ref([])
 const qYear = ref(new Date().getFullYear())
 const qData = reactive({ year: 0, quarters: [], year_budget: 0, year_total_income: 0, year_total_expense: 0, year_variance: 0, year_net: 0 })
 
-const rmDateFrom = ref(dayjs().startOf('year'))
-const rmDateTo = ref(dayjs())
+const rmDateFrom = ref(dayjs().startOf('year').format('YYYY-MM-DD'))
+const rmDateTo = ref(dayjs().format('YYYY-MM-DD'))
 const retiredMembers = ref([])
 const retiredTotal = ref(0)
 
@@ -355,8 +355,8 @@ async function fetchQuarterly() {
 async function fetchRetiredMembers() {
   try {
     const res = await reportsApi.retiredMembers({
-      date_from: rmDateFrom.value.format('YYYY-MM-DD'),
-      date_to: rmDateTo.value.format('YYYY-MM-DD'),
+      date_from: rmDateFrom.value || dayjs().startOf('year').format('YYYY-MM-DD'),
+      date_to: rmDateTo.value || dayjs().format('YYYY-MM-DD'),
     })
     retiredMembers.value = res.data?.members || []
     retiredTotal.value = res.data?.total || 0
