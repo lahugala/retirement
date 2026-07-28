@@ -22,10 +22,10 @@
         <a-statistic title="Current Net Balance" :value="netBalance" prefix="Rs." precision="2" :value-style="{ color: netBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
       </a-col>
       <a-col :span="6">
-        <a-statistic title="Total Budgeted ({{ selectedYear }})" :value="totalBudgeted" prefix="Rs." precision="2" />
+        <a-statistic :title="'Total Budgeted (' + selectedYear + ')'" :value="totalBudgeted" prefix="Rs." precision="2" />
       </a-col>
       <a-col :span="6">
-        <a-statistic title="Total Expense ({{ selectedYear }})" :value="totalExpensed" prefix="Rs." precision="2" :value-style="{ color: totalExpensed > totalBudgeted ? '#cf1322' : 'inherit' }" />
+        <a-statistic :title="'Total Expense (' + selectedYear + ')'" :value="totalExpensed" prefix="Rs." precision="2" :value-style="{ color: totalExpensed > totalBudgeted ? '#cf1322' : 'inherit' }" />
       </a-col>
       <a-col :span="6">
         <a-statistic title="Available for Planning" :value="availableForPlanning" prefix="Rs." precision="2" :value-style="{ color: availableForPlanning >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
