@@ -55,6 +55,8 @@ $routes = [
     ['GET',    '/api/members/{id}',       'MembersController@show'],
     ['PUT',    '/api/members/{id}',       'MembersController@update'],
     ['DELETE', '/api/members/{id}',       'MembersController@destroy'],
+    ['POST',   '/api/members/{id}/sync-retirement', 'MembersController@syncRetirement'],
+    ['POST',   '/api/members/sync-all',   'MembersController@syncAll'],
 
     // Categories
     ['GET',    '/api/categories',           'CategoryController@index'],
@@ -71,6 +73,7 @@ $routes = [
     ['PUT',    '/api/events/{id}',          'EventController@update'],
     ['DELETE', '/api/events/{id}',          'EventController@destroy'],
     ['PUT',    '/api/events/{id}/status',   'EventController@updateStatus'],
+    ['GET',    '/api/events/{id}/gift-issuance', 'EventController@giftIssuance'],
 
     // Budgets (nested under events)
     ['GET',    '/api/events/{id}/budgets',  'BudgetController@index'],
@@ -89,6 +92,29 @@ $routes = [
     ['PUT',    '/api/transactions/{id}/approve', 'TransactionController@approve'],
     ['PUT',    '/api/transactions/{id}/reject',  'TransactionController@reject'],
 
+    // Accounts (Chart of Accounts)
+    ['GET',    '/api/accounts',               'AccountController@index'],
+    ['POST',   '/api/accounts',               'AccountController@store'],
+    ['GET',    '/api/accounts/{id}',          'AccountController@show'],
+    ['PUT',    '/api/accounts/{id}',          'AccountController@update'],
+    ['DELETE', '/api/accounts/{id}',          'AccountController@destroy'],
+
+    // Journal Entries
+    ['GET',    '/api/journal-entries',        'JournalEntryController@index'],
+    ['GET',    '/api/journal-entries/{id}',   'JournalEntryController@show'],
+
+    // Gift Stock
+    ['GET',    '/api/gift-stock',             'GiftStockController@index'],
+    ['POST',   '/api/gift-stock',             'GiftStockController@store'],
+    ['GET',    '/api/gift-stock/{id}',        'GiftStockController@show'],
+    ['PUT',    '/api/gift-stock/{id}',        'GiftStockController@update'],
+    ['DELETE', '/api/gift-stock/{id}',        'GiftStockController@destroy'],
+    ['POST',   '/api/gift-stock/{id}/receive', 'GiftStockController@receive'],
+    ['POST',   '/api/gift-stock/{id}/issue',   'GiftStockController@issue'],
+    ['GET',    '/api/gift-stock/{id}/movements', 'GiftStockController@movements'],
+    ['PUT',    '/api/gift-stock/movements/{id}', 'GiftStockController@updateMovement'],
+    ['DELETE', '/api/gift-stock/movements/{id}', 'GiftStockController@destroyMovement'],
+
     // Uploads
     ['POST',   '/api/upload',               'UploadController@upload'],
 
@@ -97,10 +123,14 @@ $routes = [
     ['GET',    '/api/reports/income-statement',         'ReportController@incomeStatement'],
     ['GET',    '/api/reports/event-profit-loss/{id}',  'ReportController@eventProfitLoss'],
     ['GET',    '/api/reports/member-contributions',     'ReportController@memberContributions'],
+    ['GET',    '/api/reports/account-balances',         'ReportController@accountBalances'],
+    ['GET',    '/api/reports/trial-balance',            'ReportController@trialBalance'],
 
     // Audit logs
     ['GET',    '/api/reports/quarterly-summary',  'ReportController@quarterlySummary'],
     ['GET',    '/api/reports/retired-members',     'ReportController@retiredMembers'],
+    ['GET',    '/api/reports/gift-history',        'ReportController@giftHistory'],
+    ['GET',    '/api/reports/gift-not-issued',    'ReportController@giftNotIssued'],
     ['GET',    '/api/audit-logs',            'AuditController@index'],
 ];
 

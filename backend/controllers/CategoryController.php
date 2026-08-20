@@ -13,10 +13,10 @@ class CategoryController {
         $pdo = getDbConnection();
         $type = $_GET['type'] ?? null;
         if ($type) {
-            $stmt = $pdo->prepare("SELECT * FROM categories WHERE type = ? AND is_active = 1 ORDER BY name");
+            $stmt = $pdo->prepare("SELECT c.*, a.code AS account_code, a.name AS account_name FROM categories c LEFT JOIN accounts a ON c.default_account_id = a.id WHERE c.type = ? AND c.is_active = 1 ORDER BY c.name");
             $stmt->execute([$type]);
         } else {
-            $stmt = $pdo->query("SELECT * FROM categories WHERE is_active = 1 ORDER BY type, name");
+            $stmt = $pdo->query("SELECT c.*, a.code AS account_code, a.name AS account_name FROM categories c LEFT JOIN accounts a ON c.default_account_id = a.id WHERE c.is_active = 1 ORDER BY c.type, c.name");
         }
         Response::success($stmt->fetchAll());
     }
@@ -43,8 +43,8 @@ class CategoryController {
 
         $id = UUID::v4();
         $pdo = getDbConnection();
-        $stmt = $pdo->prepare("INSERT INTO categories (id, type, name) VALUES (?, ?, ?)");
-        $stmt->execute([$id, $input['type'], $input['name']]);
+        $stmt = $pdo->prepare("INSERT INTO categories (id, type, name, default_account_id) VALUES (?, ?, ?, ?)");
+        $stmt->execute([$id, $input['type'], $input['name'], $input['default_account_id'] ?? null]);
 
         AuditController::log('categories', $id, 'create', null, $input, AuthMiddleware::getUserId());
 
@@ -73,6 +73,7 @@ class CategoryController {
             $fields[] = 'type = ?'; $params[] = $input['type'];
         }
         if (isset($input['is_active'])) { $fields[] = 'is_active = ?'; $params[] = $input['is_active'] ? 1 : 0; }
+        if (array_key_exists('default_account_id', $input)) { $fields[] = 'default_account_id = ?'; $params[] = $input['default_account_id']; }
 
         if (empty($fields)) Response::error('No fields to update', 400);
         $params[] = $id;

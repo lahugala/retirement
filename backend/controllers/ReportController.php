@@ -27,6 +27,13 @@ class ReportController {
         // Active events count
         $activeEvents = $pdo->query("SELECT COUNT(*) FROM events WHERE status IN ('planned','active')")->fetchColumn();
 
+        // Member stats
+        $totalMembers = $pdo->query("SELECT COUNT(*) FROM members")->fetchColumn();
+        $retiredMembers = $pdo->query("SELECT COUNT(*) FROM members WHERE status = 'retired'")->fetchColumn();
+
+        // Gift stock value on hand
+        $giftStockValue = $pdo->query("SELECT COALESCE(SUM(quantity * unit_price), 0) FROM gift_stock WHERE is_active = 1")->fetchColumn();
+
         // Monthly income/expense for chart (last 12 months — fill gaps with 0)
         $rawMonthly = $pdo->query("
             SELECT DATE_FORMAT(transaction_date, '%Y-%m') AS month,
@@ -74,6 +81,9 @@ class ReportController {
             'net_balance'      => $totalIncome - $totalExpense,
             'pending_approvals' => (int)$pending,
             'active_events'    => (int)$activeEvents,
+            'total_members'    => (int)$totalMembers,
+            'retired_members'  => (int)$retiredMembers,
+            'gift_stock_value' => round((float)$giftStockValue, 2),
             'monthly_trend'    => $monthly,
             'top_categories'   => $topCategories->fetchAll(),
         ]);
@@ -289,6 +299,249 @@ class ReportController {
             'year_budget'        => $yearBudget,
             'year_variance'      => $yearBudget - $yearTotalExpense,
             'year_net'           => $yearTotalIncome - $yearTotalExpense,
+        ]);
+    }
+
+    // -----------------------------------------------------------
+    // Account Balances (from journal entries)
+    // -----------------------------------------------------------
+    public static function accountBalances(): void {
+        AuthMiddleware::requireAnyRole(['admin', 'treasurer', 'board']);
+        $pdo = getDbConnection();
+
+        $dateFrom = $_GET['date_from'] ?? null;
+        $dateTo = $_GET['date_to'] ?? null;
+
+        $where = '';
+        $params = [];
+        if ($dateFrom) { $where .= " AND je.entry_date >= ?"; $params[] = $dateFrom; }
+        if ($dateTo) { $where .= " AND je.entry_date <= ?"; $params[] = $dateTo; }
+
+        $sql = "SELECT a.id, a.code, a.name, a.type,
+                       COALESCE(SUM(jl.debit), 0) AS total_debit,
+                       COALESCE(SUM(jl.credit), 0) AS total_credit
+                FROM accounts a
+                LEFT JOIN journal_lines jl ON jl.account_id = a.id
+                LEFT JOIN journal_entries je ON jl.journal_entry_id = je.id
+                WHERE a.is_active = 1 $where
+                GROUP BY a.id, a.code, a.name, a.type
+                ORDER BY a.type, a.code";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $accounts = $stmt->fetchAll();
+
+        $totalAssets = 0; $totalLiabilities = 0; $totalEquity = 0;
+        $totalIncome = 0; $totalExpense = 0;
+
+        foreach ($accounts as &$acct) {
+            $acct['balance'] = (float)$acct['total_debit'] - (float)$acct['total_credit'];
+            // Normal balance: Asset/Expense = Debit; Liability/Equity/Income = Credit
+            $normalBalance = in_array($acct['type'], ['asset', 'expense']) ? 'debit' : 'credit';
+            $acct['normal_balance'] = $normalBalance;
+            switch ($acct['type']) {
+                case 'asset': $totalAssets += $acct['balance']; break;
+                case 'liability': $totalLiabilities += abs($acct['balance']); break;
+                case 'equity': $totalEquity += abs($acct['balance']); break;
+                case 'income': $totalIncome += abs($acct['balance']); break;
+                case 'expense': $totalExpense += $acct['balance']; break;
+            }
+        }
+
+        // For income/expense accounts, balance is credit - debit (normal credit balance)
+        // Net income = total income (credit) - total expense (debit)
+        $netIncome = $totalIncome - $totalExpense;
+
+        Response::success([
+            'accounts' => $accounts,
+            'totals' => [
+                'total_assets' => $totalAssets,
+                'total_liabilities' => $totalLiabilities,
+                'total_equity' => $totalEquity + $netIncome, // include current period net income
+                'total_income' => $totalIncome,
+                'total_expense' => $totalExpense,
+                'net_income' => $netIncome,
+            ],
+        ]);
+    }
+
+    // -----------------------------------------------------------
+    // Trial Balance
+    // -----------------------------------------------------------
+    public static function trialBalance(): void {
+        AuthMiddleware::requireAnyRole(['admin', 'treasurer', 'board']);
+        $pdo = getDbConnection();
+
+        $dateFrom = $_GET['date_from'] ?? null;
+        $dateTo = $_GET['date_to'] ?? null;
+
+        $where = '';
+        $params = [];
+        if ($dateFrom) { $where .= " AND je.entry_date >= ?"; $params[] = $dateFrom; }
+        if ($dateTo) { $where .= " AND je.entry_date <= ?"; $params[] = $dateTo; }
+
+        $sql = "SELECT a.code, a.name AS account_name, a.type,
+                       COALESCE(SUM(jl.debit), 0) AS total_debit,
+                       COALESCE(SUM(jl.credit), 0) AS total_credit
+                FROM accounts a
+                LEFT JOIN journal_lines jl ON jl.account_id = a.id
+                LEFT JOIN journal_entries je ON jl.journal_entry_id = je.id
+                WHERE a.is_active = 1 $where
+                GROUP BY a.code, a.name, a.type
+                ORDER BY a.type, a.code";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        $totalDebit = 0; $totalCredit = 0;
+        foreach ($rows as &$r) {
+            $totalDebit += (float)$r['total_debit'];
+            $totalCredit += (float)$r['total_credit'];
+        }
+
+        Response::success([
+            'lines' => $rows,
+            'total_debit' => $totalDebit,
+            'total_credit' => $totalCredit,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+        ]);
+    }
+
+    // -----------------------------------------------------------
+    // Gift History (stock movements)
+    // -----------------------------------------------------------
+    public static function giftHistory(): void {
+        AuthMiddleware::requireAnyRole(['admin', 'treasurer', 'board']);
+        $pdo = getDbConnection();
+
+        $dateFrom = $_GET['date_from'] ?? null;
+        $dateTo = $_GET['date_to'] ?? null;
+        $giftId = $_GET['gift_id'] ?? null;
+
+        $where = '';
+        $params = [];
+        if ($dateFrom) { $where .= " AND m.created_at >= ?"; $params[] = $dateFrom . ' 00:00:00'; }
+        if ($dateTo) { $where .= " AND m.created_at <= ?"; $params[] = $dateTo . ' 23:59:59'; }
+        if ($giftId) { $where .= " AND m.gift_id = ?"; $params[] = $giftId; }
+
+        $stmt = $pdo->prepare("
+            SELECT m.id, m.gift_id, g.name AS gift_name, g.unit, m.movement_type,
+                   m.quantity, m.unit_price, m.event_id, e.name AS event_name,
+                   m.member_id, mb.name AS member_name, m.notes,
+                   u.name AS created_by_name, m.created_at
+            FROM gift_stock_movements m
+            LEFT JOIN gift_stock g ON m.gift_id = g.id
+            LEFT JOIN events e ON m.event_id = e.id
+            LEFT JOIN members mb ON m.member_id = mb.id
+            LEFT JOIN users u ON m.created_by = u.id
+            WHERE 1=1 $where
+            ORDER BY m.created_at DESC
+        ");
+        $stmt->execute($params);
+        $rows = $stmt->fetchAll();
+
+        foreach ($rows as &$r) {
+            $r['total_value'] = round($r['quantity'] * $r['unit_price'], 2);
+        }
+
+        $totalReceived = 0;
+        $totalIssued = 0;
+        $valueReceived = 0;
+        $valueIssued = 0;
+        foreach ($rows as $r) {
+            if ($r['movement_type'] === 'received') {
+                $totalReceived += (int)$r['quantity'];
+                $valueReceived += (float)$r['total_value'];
+            } else {
+                $totalIssued += (int)$r['quantity'];
+                $valueIssued += (float)$r['total_value'];
+            }
+        }
+
+        Response::success([
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'movements' => $rows,
+            'summary' => [
+                'total_received' => $totalReceived,
+                'total_issued' => $totalIssued,
+                'value_received' => round($valueReceived, 2),
+                'value_issued' => round($valueIssued, 2),
+            ],
+        ]);
+    }
+
+    // -----------------------------------------------------------
+    // Gift Not Issued (event retirees without gifts)
+    // -----------------------------------------------------------
+    public static function giftNotIssued(): void {
+        AuthMiddleware::requireAnyRole(['admin', 'treasurer', 'board']);
+        $pdo = getDbConnection();
+
+        $eventId = $_GET['event_id'] ?? null;
+
+        $events = [];
+        if ($eventId) {
+            $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ?");
+            $stmt->execute([$eventId]);
+            $event = $stmt->fetch();
+            if (!$event) Response::error('Event not found', 404);
+            $events[] = $event;
+        } else {
+            $events = $pdo->query("SELECT * FROM events ORDER BY name ASC")->fetchAll();
+        }
+
+        // All issued movements grouped by event + member
+        $issuedByEventMember = [];
+        $stmt = $pdo->query("SELECT event_id, member_id, COUNT(*) AS issued FROM gift_stock_movements
+                             WHERE movement_type = 'issued' AND member_id IS NOT NULL
+                             GROUP BY event_id, member_id");
+        foreach ($stmt->fetchAll() as $row) {
+            $issuedByEventMember[$row['event_id']][$row['member_id']] = (int)$row['issued'];
+        }
+
+        $eventRetirees = [];
+        $notIssuedCount = 0;
+
+        foreach ($events as $event) {
+            $names = array_values(array_filter(array_map('trim', explode(',', $event['retiree_name'] ?? ''))));
+
+            $members = [];
+            if (count($names) > 0) {
+                $placeholders = implode(',', array_fill(0, count($names), '?'));
+                $stmt = $pdo->prepare("SELECT * FROM members WHERE name IN ($placeholders)");
+                $stmt->execute($names);
+                foreach ($stmt->fetchAll() as $m) {
+                    $members[strtolower(trim($m['name']))] = $m;
+                }
+            }
+
+            $issuedByMember = $issuedByEventMember[$event['id']] ?? [];
+
+            foreach ($names as $name) {
+                $member = $members[strtolower(trim($name))] ?? null;
+                $memberId = $member['id'] ?? null;
+                $issued = $memberId ? ($issuedByMember[$memberId] ?? 0) : 0;
+                $eventRetirees[] = [
+                    'event_id' => $event['id'],
+                    'event_name' => $event['name'],
+                    'name' => trim($name),
+                    'member_id' => $memberId,
+                    'gift_issued' => $issued > 0,
+                    'issued_count' => $issued,
+                    'nic' => $member['nic'] ?? null,
+                    'service_no' => $member['service_no'] ?? null,
+                    'computer_no' => $member['computer_no'] ?? null,
+                    'matched' => $memberId !== null,
+                ];
+                if ($issued === 0) $notIssuedCount++;
+            }
+        }
+
+        Response::success([
+            'event' => $eventId ? ($events[0] ?? null) : null,
+            'event_retirees' => $eventRetirees,
+            'not_issued_count' => $notIssuedCount,
         ]);
     }
 

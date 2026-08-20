@@ -171,6 +171,69 @@ class EventController {
         Response::success($stmt->fetch(), 'Event updated');
     }
 
+    public static function giftIssuance(string $id): void {
+        AuthMiddleware::authenticate();
+        $pdo = getDbConnection();
+
+        $stmt = $pdo->prepare("SELECT * FROM events WHERE id = ?");
+        $stmt->execute([$id]);
+        $event = $stmt->fetch();
+        if (!$event) Response::error('Event not found', 404);
+
+        $names = array_values(array_filter(array_map('trim', explode(',', $event['retiree_name'] ?? ''))));
+
+        // Map retiree names to member ids
+        $members = [];
+        if (count($names) > 0) {
+            $placeholders = implode(',', array_fill(0, count($names), '?'));
+            $stmt = $pdo->prepare("SELECT * FROM members WHERE name IN ($placeholders)");
+            $stmt->execute($names);
+            foreach ($stmt->fetchAll() as $m) {
+                $members[strtolower(trim($m['name']))] = $m;
+            }
+        }
+
+        // Find issued gifts for this event (optionally per member)
+        $stmt = $pdo->prepare("SELECT gm.*, g.name AS gift_name, mb.name AS member_name
+                               FROM gift_stock_movements gm
+                               LEFT JOIN gift_stock g ON gm.gift_id = g.id
+                               LEFT JOIN members mb ON gm.member_id = mb.id
+                               WHERE gm.event_id = ? AND gm.movement_type = 'issued'
+                               ORDER BY gm.created_at DESC");
+        $stmt->execute([$id]);
+        $issuedRows = $stmt->fetchAll();
+
+        // Build per-member issued gifts
+        $issuedByMember = [];
+        $issuedAnon = [];
+        foreach ($issuedRows as $r) {
+            if ($r['member_id']) {
+                $issuedByMember[$r['member_id']][] = $r;
+            } else {
+                $issuedAnon[] = $r;
+            }
+        }
+
+        $retirees = [];
+        foreach ($names as $name) {
+            $key = strtolower(trim($name));
+            $member = $members[$key] ?? null;
+            $issued = $member ? ($issuedByMember[$member['id']] ?? []) : [];
+            $retirees[] = [
+                'name' => trim($name),
+                'member_id' => $member['id'] ?? null,
+                'gift_issued' => count($issued) > 0,
+                'gifts' => $issued,
+            ];
+        }
+
+        Response::success([
+            'event_id' => $id,
+            'retirees' => $retirees,
+            'issued_any' => $issuedAnon,
+        ]);
+    }
+
     public static function updateStatus(string $id): void {
         AuthMiddleware::authenticate();
         $input = json_decode(file_get_contents('php://input'), true);

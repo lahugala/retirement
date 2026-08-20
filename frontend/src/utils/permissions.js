@@ -19,6 +19,8 @@ export function canAccess(menuKey, userRole) {
     members: ['admin', 'treasurer', 'board', 'organizer'],
     users: ['admin', 'treasurer', 'board'],
     categories: ['admin', 'treasurer'],
+    accounts: ['admin', 'treasurer'],
+    giftstock: ['admin', 'treasurer', 'board'],
     reports: ['admin', 'treasurer', 'board'],
     audit: ['admin', 'treasurer', 'board'],
   }

@@ -43,10 +43,12 @@ class TransactionController {
         $totalCount = $total->fetchColumn();
 
         $sql = "SELECT t.*, c.name AS category_name, c.type AS category_type,
+                       c.default_account_id, a.code AS account_code, a.name AS account_name,
                        e.name AS event_name, e.status AS event_status,
                        m.name AS created_by_name, ap.name AS approved_by_name
                 FROM transactions t
                 JOIN categories c ON t.category_id = c.id
+                LEFT JOIN accounts a ON c.default_account_id = a.id
                 LEFT JOIN events e ON t.event_id = e.id
                 LEFT JOIN users m ON t.created_by = m.id
                 LEFT JOIN users ap ON t.approved_by = ap.id
@@ -65,10 +67,12 @@ class TransactionController {
         AuthMiddleware::authenticate();
         $pdo = getDbConnection();
         $stmt = $pdo->prepare("SELECT t.*, c.name AS category_name, c.type AS category_type,
+                                      c.default_account_id, a.code AS account_code, a.name AS account_name,
                                       e.name AS event_name, e.status AS event_status,
                                       m.name AS created_by_name, ap.name AS approved_by_name
                                FROM transactions t
                                JOIN categories c ON t.category_id = c.id
+                               LEFT JOIN accounts a ON c.default_account_id = a.id
                                LEFT JOIN events e ON t.event_id = e.id
                                LEFT JOIN users m ON t.created_by = m.id
                                LEFT JOIN users ap ON t.approved_by = ap.id
@@ -158,9 +162,14 @@ class TransactionController {
             ->execute([$input['event_id'], $input['category_id'], $input['event_id'], $input['category_id']]);
         }
 
+        // Post journal entry if auto-approved
+        if ($status === 'approved') {
+            self::postJournalForTransaction($id, $pdo, $userId);
+        }
+
         AuditController::log('transactions', $id, 'create', null, $input, $userId);
 
-        $stmt = $pdo->prepare("SELECT t.*, c.name AS category_name, c.type AS category_type FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.id = ?");
+        $stmt = $pdo->prepare("SELECT t.*, c.name AS category_name, c.type AS category_type, c.default_account_id, a.code AS account_code, a.name AS account_name FROM transactions t JOIN categories c ON t.category_id = c.id LEFT JOIN accounts a ON c.default_account_id = a.id WHERE t.id = ?");
         $stmt->execute([$id]);
         Response::success($stmt->fetch(), 'Transaction created', 201);
     }
@@ -207,6 +216,12 @@ class TransactionController {
         $params[] = $id;
         $pdo->prepare("UPDATE transactions SET " . implode(', ', $fields) . " WHERE id = ?")->execute($params);
 
+        // Re-post journal entry if approved
+        $newStatus = $input['status'] ?? $old['status'];
+        if ($newStatus === 'approved' || $old['status'] === 'approved') {
+            self::postJournalForTransaction($id, $pdo, $userId);
+        }
+
         AuditController::log('transactions', $id, 'update', $old, array_merge($old, $input), $userId);
 
         $stmt = $pdo->prepare("SELECT t.*, c.name AS category_name FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.id = ?");
@@ -236,6 +251,9 @@ class TransactionController {
             ) WHERE event_id = ? AND category_id = ?")
             ->execute([$old['event_id'], $old['category_id'], $old['event_id'], $old['category_id']]);
         }
+
+        // Post journal entry
+        self::postJournalForTransaction($id, $pdo, $userId);
 
         AuditController::log('transactions', $id, 'approve', $old, ['status' => 'approved', 'approved_by' => $userId], $userId);
         Response::success(['id' => $id, 'status' => 'approved'], 'Transaction approved');
@@ -279,7 +297,52 @@ class TransactionController {
 
         $reason = $input['delete_reason'] ?? 'No reason provided';
         $pdo->prepare("UPDATE transactions SET is_deleted = 1, delete_reason = ? WHERE id = ?")->execute([$reason, $id]);
+
+        // Remove associated journal entry if any
+        $pdo->prepare("DELETE FROM journal_entries WHERE reference_type = 'transaction' AND reference_id = ?")->execute([$id]);
+
         AuditController::log('transactions', $id, 'soft_delete', $old, ['is_deleted' => 1, 'delete_reason' => $reason], $userId);
         Response::success(null, 'Transaction soft-deleted');
+    }
+
+    // -----------------------------------------------------------
+    // Journal entry posting (double-entry accounting)
+    // -----------------------------------------------------------
+    private static function postJournalForTransaction(string $txnId, PDO $pdo, string $userId): void {
+        // Remove existing journal entry if re-posting
+        $pdo->prepare("DELETE FROM journal_entries WHERE reference_type = 'transaction' AND reference_id = ?")->execute([$txnId]);
+
+        $stmt = $pdo->prepare("SELECT t.*, c.default_account_id FROM transactions t JOIN categories c ON t.category_id = c.id WHERE t.id = ?");
+        $stmt->execute([$txnId]);
+        $txn = $stmt->fetch();
+        if (!$txn || !$txn['default_account_id']) return;
+
+        $jeId = UUID::v4();
+        $refNum = 'TXN-' . strtoupper(substr($txnId, 0, 8));
+        $desc = $txn['description'] ?: ($txn['type'] === 'income' ? 'Income' : 'Expense');
+
+        $pdo->prepare("INSERT INTO journal_entries (id, entry_date, ref_num, description, reference_type, reference_id, created_by)
+                       VALUES (?, ?, ?, ?, 'transaction', ?, ?)")
+            ->execute([$jeId, $txn['transaction_date'], $refNum, $desc, $txnId, $userId]);
+
+        if ($txn['type'] === 'income') {
+            // Debit Cash, Credit Income account
+            $line1Id = UUID::v4();
+            $line2Id = UUID::v4();
+            $pdo->prepare("INSERT INTO journal_lines (id, journal_entry_id, account_id, debit, credit, description) VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$line1Id, $jeId, 'a1000000-0000-0000-0000-000000000001', $txn['amount'], 0, $desc]);
+            $pdo->prepare("INSERT INTO journal_lines (id, journal_entry_id, account_id, debit, credit, description) VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$line2Id, $jeId, $txn['default_account_id'], 0, $txn['amount'], $desc]);
+        } else {
+            // Debit Expense account, Credit Cash
+            $line1Id = UUID::v4();
+            $line2Id = UUID::v4();
+            $pdo->prepare("INSERT INTO journal_lines (id, journal_entry_id, account_id, debit, credit, description) VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$line1Id, $jeId, $txn['default_account_id'], $txn['amount'], 0, $desc]);
+            $pdo->prepare("INSERT INTO journal_lines (id, journal_entry_id, account_id, debit, credit, description) VALUES (?, ?, ?, ?, ?, ?)")
+                ->execute([$line2Id, $jeId, 'a1000000-0000-0000-0000-000000000001', 0, $txn['amount'], $desc]);
+        }
+
+        AuditController::log('journal_entries', $jeId, 'create', null, ['ref_num' => $refNum, 'txn_id' => $txnId], $userId);
     }
 }

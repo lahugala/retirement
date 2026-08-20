@@ -23,7 +23,19 @@
             </a-descriptions-item>
             <a-descriptions-item label="Retiree(s)">
               <div v-if="event?.retiree_name">
-                <a-tag v-for="name in retireeList" :key="name" style="margin: 2px">{{ name }}</a-tag>
+                <template v-for="r in retireeDetails" :key="r.name">
+                  <a-popover trigger="click" placement="right">
+                    <template #content>
+                      <div style="font-size: 13px">
+                        <div><strong>NIC:</strong> {{ r.nic || '-' }}</div>
+                        <div><strong>Service No:</strong> {{ r.service_no || '-' }}</div>
+                        <div><strong>Computer No:</strong> {{ r.computer_no || '-' }}</div>
+                        <div><strong>Retirement:</strong> {{ r.retirement_date || '-' }}</div>
+                      </div>
+                    </template>
+                    <a-tag color="blue" style="margin: 2px; cursor: pointer">{{ r.name }}</a-tag>
+                  </a-popover>
+                </template>
                 <a-button type="link" size="small" @click="showRetireeModal" v-if="canEdit">+ Add</a-button>
               </div>
               <span v-else>
@@ -127,6 +139,43 @@
       </a-col>
     </a-row>
 
+    <!-- Gift Issuance -->
+    <a-card title="Gift Issuance" style="margin-top: 16px" :loading="loading">
+      <template #extra>
+        <a-button type="primary" size="small" @click="showIssueGiftModal" v-if="canEdit" :disabled="giftIssuanceRetirees.length === 0">
+          <GiftOutlined /> Issue Gift
+        </a-button>
+      </template>
+      <a-alert v-if="giftIssuanceRetirees.length === 0" type="info" show-icon message="No retirees added to this event yet" style="margin-bottom: 12px" />
+      <a-table :dataSource="giftIssuanceRetirees" rowKey="name" size="small" :pagination="false">
+        <a-table-column title="Retiree" dataIndex="name" />
+        <a-table-column title="Gift Status" width="140">
+          <template #default="{ record }">
+            <a-tag :color="record.gift_issued ? 'green' : 'orange'">
+              {{ record.gift_issued ? 'Issued' : 'Not Issued' }}
+            </a-tag>
+          </template>
+        </a-table-column>
+        <a-table-column title="Gift(s) Issued" ellipsis>
+          <template #default="{ record }">
+            <template v-if="record.gifts && record.gifts.length > 0">
+              <a-tag v-for="g in record.gifts" :key="g.id" color="blue" style="margin: 2px">
+                {{ g.gift_name }} ({{ g.quantity }})
+              </a-tag>
+            </template>
+            <span v-else style="color: #999">-</span>
+          </template>
+        </a-table-column>
+        <a-table-column title="Actions" width="100" v-if="canEdit">
+          <template #default="{ record }">
+            <a-button size="small" type="link" @click="showManageGifts(record)" :disabled="!record.gifts || record.gifts.length === 0">
+              Manage
+            </a-button>
+          </template>
+        </a-table-column>
+      </a-table>
+    </a-card>
+
     <!-- Transactions for this event -->
     <a-card title="Event Transactions" style="margin-top: 16px" :loading="loading">
       <a-table :dataSource="event?.transactions || []" rowKey="id" size="small" :pagination="{ pageSize: 10 }">
@@ -215,6 +264,76 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Issue Gift Modal -->
+    <a-modal v-model:visible="issueGiftModalVisible" title="Issue Gift to Retiree" @ok="confirmIssueGift" :confirm-loading="issueGiftSubmitting" ok-text="Issue Gift" destroyOnClose>
+      <a-form layout="vertical">
+        <a-form-item label="Retiree" required>
+          <a-select v-model:value="issueGiftForm.member_id" placeholder="Select retiree" style="width: 100%">
+            <a-select-option v-for="r in giftIssuanceRetirees" :key="r.member_id" :value="r.member_id">
+              {{ r.name }} {{ r.gift_issued ? '(has gifts)' : '' }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="Gift" required>
+          <a-select v-model:value="issueGiftForm.gift_id" placeholder="Select gift" style="width: 100%">
+            <a-select-option v-for="g in giftStockItems" :key="g.id" :value="g.id" :disabled="g.quantity <= 0">
+              {{ g.name }} ({{ g.quantity }} in stock)
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="Quantity" required>
+          <a-input-number v-model:value="issueGiftForm.quantity" :min="1" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- Manage Gifts Modal -->
+    <a-modal v-model:visible="manageGiftsVisible" :title="`Manage Gifts - ${manageGiftsRetiree?.name || ''}`" :footer="null" destroyOnClose width="860">
+      <a-table :dataSource="manageGiftsList" rowKey="id" size="small" :pagination="false" :loading="manageGiftsLoading">
+        <a-table-column title="Gift" dataIndex="gift_name" ellipsis />
+        <a-table-column title="Qty" dataIndex="quantity" align="right" width="60" />
+        <a-table-column title="Unit Price" dataIndex="unit_price" align="right" width="100">
+          <template #default="{ record }">Rs. {{ Number(record.unit_price || 0).toFixed(2) }}</template>
+        </a-table-column>
+        <a-table-column title="Total" align="right" width="110">
+          <template #default="{ record }">Rs. {{ (Number(record.quantity || 0) * Number(record.unit_price || 0)).toFixed(2) }}</template>
+        </a-table-column>
+        <a-table-column title="Issued On" dataIndex="created_at" width="110">
+          <template #default="{ record }">{{ record.created_at ? dayjs(record.created_at).format('YYYY-MM-DD') : '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Actions" width="150">
+          <template #default="{ record }">
+            <a-space>
+              <a-button size="small" type="link" @click="startEditMovement(record)">Edit</a-button>
+              <a-popconfirm title="Remove this gift issue? Stock will be returned." @confirm="removeMovement(record)">
+                <a-button size="small" danger type="link"><DeleteOutlined /></a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
+        </a-table-column>
+      </a-table>
+      <div style="margin-top: 12px; text-align: right">
+        <a-button type="primary" size="small" @click="closeManageGifts">Done</a-button>
+      </div>
+    </a-modal>
+
+    <!-- Edit Movement Modal -->
+    <a-modal v-model:visible="editMovementVisible" title="Edit Issued Gift" @ok="confirmEditMovement" :confirm-loading="editMovementSubmitting" ok-text="Save" destroyOnClose>
+      <a-form layout="vertical">
+        <a-form-item label="Gift">
+          <a-select v-model:value="editMovementForm.gift_id" style="width: 100%">
+            <a-select-option v-for="g in giftStockItems" :key="g.id" :value="g.id">{{ g.name }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item label="Quantity" required>
+          <a-input-number v-model:value="editMovementForm.quantity" :min="1" style="width: 100%" />
+        </a-form-item>
+        <a-form-item label="Notes">
+          <a-textarea v-model:value="editMovementForm.notes" :rows="2" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -223,8 +342,9 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useEventStore } from '../stores/events.js'
 import { useAuthStore } from '../stores/auth.js'
-import { categories as catApi, members as membersApi, reports as reportsApi } from '../api/index.js'
+import { categories as catApi, members as membersApi, reports as reportsApi, giftStock as giftStockApi } from '../api/index.js'
 import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 
 const route = useRoute()
 const store = useEventStore()
@@ -232,6 +352,7 @@ const auth = useAuthStore()
 const loading = ref(true)
 const event = ref(null)
 const expenseCategories = ref([])
+const membersList = ref([])
 const budgetModalVisible = ref(false)
 const budgetSubmitting = ref(false)
 const budgetForm = ref({ category_id: null, planned_amount: 0 })
@@ -242,10 +363,15 @@ const canEdit = computed(() => {
   return !['completed', 'cancelled'].includes(event.value.status)
 })
 
-const retireeList = computed(() => {
-  const names = event.value?.retiree_name || ''
-  return names.split(',').map((s) => s.trim()).filter(Boolean)
-})
+const retireeDetails = ref([])
+
+function refreshRetireeDetails() {
+  const names = (event.value?.retiree_name || '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (names.length === 0) { retireeDetails.value = []; return }
+  const map = {}
+  membersList.value.forEach((m) => { map[m.name.toLowerCase()] = m })
+  retireeDetails.value = names.map((n) => map[n.toLowerCase()] || { name: n })
+}
 
 const activateModalVisible = ref(false)
 const activating = ref(false)
@@ -311,6 +437,20 @@ const selectedRetirees = ref([])
 const memberOptions = ref([])
 const retireeSaving = ref(false)
 
+const giftIssuanceRetirees = ref([])
+const giftStockItems = ref([])
+const issueGiftModalVisible = ref(false)
+const issueGiftSubmitting = ref(false)
+const issueGiftForm = ref({ member_id: null, gift_id: null, quantity: 1 })
+
+const manageGiftsVisible = ref(false)
+const manageGiftsRetiree = ref(null)
+const manageGiftsList = ref([])
+const manageGiftsLoading = ref(false)
+const editMovementVisible = ref(false)
+const editMovementSubmitting = ref(false)
+const editMovementForm = ref({ movement_id: null, gift_id: null, quantity: 1, notes: '' })
+
 function statusColor(s) {
   return { planned: 'blue', active: 'green', completed: 'default', cancelled: 'red' }[s] || 'default'
 }
@@ -321,7 +461,17 @@ function txnStatusColor(s) {
 async function fetchEvent() {
   loading.value = true
   try {
-    event.value = await store.get(route.params.id)
+    const [evtRes, memRes, giRes, giftRes] = await Promise.all([
+      store.get(route.params.id),
+      membersApi.list({ per_page: 1000 }),
+      store.giftIssuance ? store.giftIssuance(route.params.id) : Promise.resolve(null),
+      giftStockApi.list(),
+    ])
+    event.value = evtRes
+    membersList.value = memRes.data?.items || []
+    giftIssuanceRetirees.value = giRes?.data?.retirees || []
+    giftStockItems.value = giftRes.data || []
+    refreshRetireeDetails()
   } catch (e) { message.error('Failed to load event') }
   finally { loading.value = false }
 }
@@ -387,7 +537,7 @@ async function confirmCancel() {
 async function showRetireeModal() {
   selectedRetirees.value = []
   try {
-    const res = await membersApi.list({ per_page: 200 })
+    const res = await membersApi.list({ per_page: 1000 })
     memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.nic})`, value: m.name }))
   } catch { memberOptions.value = [] }
   retireeModalVisible.value = true
@@ -405,6 +555,74 @@ async function confirmRetiree() {
     await fetchEvent()
   } catch (e) { message.error(e?.message || 'Failed') }
   finally { retireeSaving.value = false }
+}
+
+function showIssueGiftModal() {
+  issueGiftForm.value = { member_id: null, gift_id: null, quantity: 1 }
+  issueGiftModalVisible.value = true
+}
+
+async function confirmIssueGift() {
+  if (!issueGiftForm.value.member_id) { message.error('Select a retiree'); return }
+  if (!issueGiftForm.value.gift_id) { message.error('Select a gift'); return }
+  if (!issueGiftForm.value.quantity || issueGiftForm.value.quantity < 1) { message.error('Quantity must be at least 1'); return }
+  issueGiftSubmitting.value = true
+  try {
+    await giftStockApi.issue(issueGiftForm.value.gift_id, {
+      quantity: issueGiftForm.value.quantity,
+      event_id: route.params.id,
+      member_id: issueGiftForm.value.member_id,
+    })
+    message.success('Gift issued')
+    issueGiftModalVisible.value = false
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
+  finally { issueGiftSubmitting.value = false }
+}
+
+function showManageGifts(record) {
+  manageGiftsRetiree.value = record
+  manageGiftsList.value = record.gifts || []
+  manageGiftsVisible.value = true
+}
+
+function closeManageGifts() {
+  manageGiftsVisible.value = false
+}
+
+function startEditMovement(record) {
+  editMovementForm.value = {
+    movement_id: record.id,
+    gift_id: record.gift_id,
+    quantity: record.quantity,
+    notes: record.notes || '',
+  }
+  editMovementVisible.value = true
+}
+
+async function confirmEditMovement() {
+  if (!editMovementForm.value.gift_id) { message.error('Select a gift'); return }
+  if (!editMovementForm.value.quantity || editMovementForm.value.quantity < 1) { message.error('Quantity must be at least 1'); return }
+  editMovementSubmitting.value = true
+  try {
+    await giftStockApi.updateMovement(editMovementForm.value.movement_id, {
+      quantity: editMovementForm.value.quantity,
+      notes: editMovementForm.value.notes || null,
+    })
+    message.success('Gift issue updated')
+    editMovementVisible.value = false
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
+  finally { editMovementSubmitting.value = false }
+}
+
+async function removeMovement(record) {
+  try {
+    await giftStockApi.deleteMovement(record.id)
+    message.success('Gift issue removed')
+    await fetchEvent()
+    showManageGifts(manageGiftsRetiree.value)
+  } catch (e) { message.error(e?.message || 'Failed') }
 }
 
 async function showAddBudget() {

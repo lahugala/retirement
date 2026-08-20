@@ -34,7 +34,7 @@
           <a-date-picker v-model:value="filters.date_to" placeholder="To" style="width: 100%" @change="fetchData" value-format="YYYY-MM-DD" />
         </a-col>
         <a-col :xs="24" :sm="12" :md="4">
-          <a-input v-model:value="filters.designated_retiree" placeholder="Retiree name" allow-clear @change="fetchData" />
+          <a-select v-model:value="filters.designated_retiree" placeholder="Retiree" allow-clear style="width: 100%" @change="fetchData" :options="memberOptions" />
         </a-col>
         <a-col :xs="24" :sm="12" :md="4">
           <a-button @click="resetFilters">Reset</a-button>
@@ -49,6 +49,9 @@
           </template>
         </a-table-column>
         <a-table-column title="Category" dataIndex="category_name" width="120" />
+        <a-table-column title="Account" dataIndex="account_name" width="120">
+          <template #default="{ record }">{{ record.account_code }} {{ record.account_name || '-' }}</template>
+        </a-table-column>
         <a-table-column title="Description" dataIndex="description" ellipsis min-width="150" />
         <a-table-column title="Payee" dataIndex="payee" width="120" />
         <a-table-column title="Amount" dataIndex="amount" width="100" align="right">
@@ -148,7 +151,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTransactionStore } from '../stores/transactions.js'
 import { useAuthStore } from '../stores/auth.js'
-import { categories as catApi, events as eventApi, uploads as uploadApi } from '../api/index.js'
+import { categories as catApi, events as eventApi, uploads as uploadApi, members as memberApi } from '../api/index.js'
 import { message, Modal } from 'ant-design-vue'
 
 const store = useTransactionStore()
@@ -164,6 +167,7 @@ const rejectReason = ref('')
 const fileList = ref([])
 const categoriesList = ref([])
 const eventsList = ref([])
+const membersList = ref([])
 const filters = reactive({
   type: route.query.status ? '' : (route.query.type || ''),
   status: route.query.status || '',
@@ -189,7 +193,6 @@ const form = reactive({
   description: '',
   payment_method: 'cash',
   event_id: null,
-  designated_retiree: '',
   receipt_path: null,
 })
 
@@ -209,6 +212,9 @@ const eventOptions = computed(() => {
   }
   return active
 })
+const memberOptions = computed(() =>
+  membersList.value.map((m) => ({ label: m.name, value: m.name }))
+)
 const pagination = computed(() => ({
   current: store.page,
   total: store.total,
@@ -246,7 +252,7 @@ async function showCreateModal() {
   Object.assign(form, {
     type: 'expense', category_id: null, amount: null, transaction_date: null,
     payee: '', description: '', payment_method: 'cash', event_id: null,
-    designated_retiree: '', receipt_path: null,
+    receipt_path: null,
   })
   fileList.value = []
   await loadFormData()
@@ -259,8 +265,7 @@ async function showEditModal(record) {
     type: record.type, category_id: record.category_id, amount: record.amount,
     transaction_date: record.transaction_date, payee: record.payee || '',
     description: record.description || '', payment_method: record.payment_method,
-    event_id: record.event_id, designated_retiree: record.designated_retiree || '',
-    receipt_path: record.receipt_path,
+    event_id: record.event_id, receipt_path: record.receipt_path,
   })
   fileList.value = record.receipt_path ? [{ name: 'Receipt', url: record.receipt_path }] : []
   await loadFormData()
@@ -367,5 +372,15 @@ function viewReceipt(record) {
   if (record.receipt_path) window.open(record.receipt_path, '_blank')
 }
 
-onMounted(fetchData)
+async function loadFilterMembers() {
+  try {
+    const res = await memberApi.list({ per_page: 1000 })
+    membersList.value = res.data?.items || []
+  } catch {}
+}
+
+onMounted(() => {
+  fetchData()
+  loadFilterMembers()
+})
 </script>

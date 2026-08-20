@@ -50,6 +50,8 @@ export const members = {
   create: (data) => api.post('/members', data),
   update: (id, data) => api.put(`/members/${id}`, data),
   delete: (id) => api.delete(`/members/${id}`),
+  syncRetirement: (id) => api.post(`/members/${id}/sync-retirement`),
+  syncAll: () => api.post('/members/sync-all'),
 }
 
 // ---- Categories ----
@@ -70,6 +72,7 @@ export const events = {
   delete: (id) => api.delete(`/events/${id}`),
   updateStatus: (id, data) => api.put(`/events/${id}/status`, data),
   generateQuarters: (data) => api.post('/events/generate-quarters', data),
+  giftIssuance: (id) => api.get(`/events/${id}/gift-issuance`),
 }
 
 // ---- Budgets ----
@@ -100,6 +103,35 @@ export const uploads = {
   },
 }
 
+// ---- Accounts (Chart of Accounts) ----
+export const accounts = {
+  list: (params) => api.get('/accounts', { params }),
+  get: (id) => api.get(`/accounts/${id}`),
+  create: (data) => api.post('/accounts', data),
+  update: (id, data) => api.put(`/accounts/${id}`, data),
+  delete: (id) => api.delete(`/accounts/${id}`),
+}
+
+// ---- Journal Entries ----
+export const journalEntries = {
+  list: (params) => api.get('/journal-entries', { params }),
+  get: (id) => api.get(`/journal-entries/${id}`),
+}
+
+// ---- Gift Stock ----
+export const giftStock = {
+  list: (params) => api.get('/gift-stock', { params }),
+  get: (id) => api.get(`/gift-stock/${id}`),
+  create: (data) => api.post('/gift-stock', data),
+  update: (id, data) => api.put(`/gift-stock/${id}`, data),
+  delete: (id) => api.delete(`/gift-stock/${id}`),
+  receive: (id, data) => api.post(`/gift-stock/${id}/receive`, data),
+  issue: (id, data) => api.post(`/gift-stock/${id}/issue`, data),
+  movements: (id, params) => api.get(`/gift-stock/${id}/movements`, { params }),
+  updateMovement: (movementId, data) => api.put(`/gift-stock/movements/${movementId}`, data),
+  deleteMovement: (movementId) => api.delete(`/gift-stock/movements/${movementId}`),
+}
+
 // ---- Reports ----
 export const reports = {
   dashboard: (params) => api.get('/reports/dashboard', { params }),
@@ -108,6 +140,10 @@ export const reports = {
   memberContributions: (params) => api.get('/reports/member-contributions', { params }),
   quarterlySummary: (params) => api.get('/reports/quarterly-summary', { params }),
   retiredMembers: (params) => api.get('/reports/retired-members', { params }),
+  giftHistory: (params) => api.get('/reports/gift-history', { params }),
+  giftNotIssued: (params) => api.get('/reports/gift-not-issued', { params }),
+  accountBalances: (params) => api.get('/reports/account-balances', { params }),
+  trialBalance: (params) => api.get('/reports/trial-balance', { params }),
 }
 
 // ---- Audit Logs ----

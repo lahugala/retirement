@@ -186,6 +186,136 @@
         </a-card>
       </a-tab-pane>
 
+      <!-- Gift History Report -->
+      <a-tab-pane key="gift-history" tab="Gift History">
+        <a-card>
+          <template #extra>
+            <a-space>
+              <a-date-picker v-model:value="ghDateFrom" placeholder="From" value-format="YYYY-MM-DD" />
+              <a-date-picker v-model:value="ghDateTo" placeholder="To" value-format="YYYY-MM-DD" />
+              <a-select v-model:value="ghGiftId" placeholder="All gifts" style="width: 200px" allow-clear :options="giftOptions" />
+              <a-button type="primary" @click="fetchGiftHistory">Search</a-button>
+              <a-button @click="exportCSV(giftMovements, 'gift-history.csv')" :disabled="giftMovements.length === 0">Export CSV</a-button>
+            </a-space>
+          </template>
+
+          <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+            <a-col :span="6"><a-statistic title="Total Received" :value="giftSummary.total_received" suffix="units" :value-style="{ color: '#3f8600' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Total Issued" :value="giftSummary.total_issued" suffix="units" :value-style="{ color: '#cf1322' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Received Value" :value="giftSummary.value_received" prefix="Rs." :value-style="{ color: '#3f8600' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Issued Value" :value="giftSummary.value_issued" prefix="Rs." :value-style="{ color: '#cf1322' }" /></a-col>
+          </a-row>
+
+          <a-table :dataSource="giftMovements" rowKey="id" size="small" :pagination="{ pageSize: 20 }">
+            <a-table-column title="Date" dataIndex="created_at" width="110">
+              <template #default="{ record }">{{ dayjs(record.created_at).format('YYYY-MM-DD') }}</template>
+            </a-table-column>
+            <a-table-column title="Gift" dataIndex="gift_name" ellipsis />
+            <a-table-column title="Type" dataIndex="movement_type" width="100">
+              <template #default="{ record }">
+                <a-tag :color="record.movement_type === 'received' ? 'green' : 'red'">{{ record.movement_type }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="Qty" dataIndex="quantity" align="right" width="70" />
+            <a-table-column title="Unit Price" dataIndex="unit_price" align="right" width="100">
+              <template #default="{ record }">Rs. {{ Number(record.unit_price).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Total" dataIndex="total_value" align="right" width="110">
+              <template #default="{ record }">Rs. {{ Number(record.total_value).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Member" dataIndex="member_name" ellipsis>
+              <template #default="{ record }">{{ record.member_name || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Event" dataIndex="event_name" ellipsis>
+              <template #default="{ record }">{{ record.event_name || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Recorded By" dataIndex="created_by_name" ellipsis>
+              <template #default="{ record }">{{ record.created_by_name || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Notes" dataIndex="notes" ellipsis>
+              <template #default="{ record }">{{ record.notes || '-' }}</template>
+            </a-table-column>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
+
+      <!-- Gift Not Issued Report -->
+      <a-tab-pane key="gift-not-issued" tab="Gifts Not Issued">
+        <a-card>
+          <template #extra>
+            <a-space>
+              <a-select v-model:value="gniEventId" style="width: 300px" @change="fetchGiftNotIssued">
+                <a-select-option value="all">View All Events</a-select-option>
+                <a-select-option v-for="e in gniEventOptions" :key="e.value" :value="e.value">{{ e.label }}</a-select-option>
+              </a-select>
+              <a-button type="primary" @click="fetchGiftNotIssued">Search</a-button>
+              <a-button @click="exportCSV(gniNotIssuedRetirees, 'gifts-not-issued-event.csv')" :disabled="gniNotIssuedRetirees.length === 0">Export CSV</a-button>
+            </a-space>
+          </template>
+
+          <h5 style="margin: 0 0 8px 0">Event Retirees Without Gifts</h5>
+          <a-statistic v-if="gniEventId && gniEventId !== 'all'" :title="`Not yet issued - ${gniEventName}`" :value="gniNotIssuedCount" suffix="retirees" :value-style="{ color: gniNotIssuedCount > 0 ? '#cf1322' : '#3f8600' }" style="margin-bottom: 16px" />
+          <a-statistic v-else title="Not yet issued across all events" :value="gniNotIssuedCount" suffix="retirees" :value-style="{ color: gniNotIssuedCount > 0 ? '#cf1322' : '#3f8600' }" style="margin-bottom: 16px" />
+
+          <a-table :dataSource="gniNotIssuedRetirees" rowKey="member_id" size="small" :pagination="{ pageSize: 20 }">
+            <a-table-column v-if="gniEventId === 'all'" title="Event" dataIndex="event_name" ellipsis />
+            <a-table-column title="Retiree" dataIndex="name" ellipsis />
+            <a-table-column title="NIC" dataIndex="nic">
+              <template #default="{ record }">{{ record.nic || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Service No" dataIndex="service_no">
+              <template #default="{ record }">{{ record.service_no || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Computer No" dataIndex="computer_no">
+              <template #default="{ record }">{{ record.computer_no || '-' }}</template>
+            </a-table-column>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
+
+      <!-- Account Balances -->
+      <a-tab-pane key="account-balances" tab="Account Balances">
+        <a-card>
+          <template #extra>
+            <a-space>
+              <a-date-picker v-model:value="abDateFrom" placeholder="From" value-format="YYYY-MM-DD" />
+              <a-date-picker v-model:value="abDateTo" placeholder="To" value-format="YYYY-MM-DD" />
+              <a-button type="primary" @click="fetchAccountBalances">Refresh</a-button>
+            </a-space>
+          </template>
+
+          <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+            <a-col :span="6"><a-statistic title="Total Assets" :value="abTotals.total_assets" prefix="Rs. " :value-style="{ color: '#1890ff' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Total Liabilities" :value="abTotals.total_liabilities" prefix="Rs. " :value-style="{ color: '#faad14' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Total Equity" :value="abTotals.total_equity" prefix="Rs. " :value-style="{ color: '#3f8600' }" /></a-col>
+            <a-col :span="6"><a-statistic title="Net Income" :value="abTotals.net_income" prefix="Rs. " :value-style="{ color: (abTotals.net_income || 0) >= 0 ? '#3f8600' : '#cf1322' }" /></a-col>
+          </a-row>
+
+          <a-table :dataSource="accountBalances" rowKey="id" size="small" :pagination="{ pageSize: 50 }">
+            <a-table-column title="Code" dataIndex="code" width="80" />
+            <a-table-column title="Account" dataIndex="name" ellipsis />
+            <a-table-column title="Type" dataIndex="type" width="100">
+              <template #default="{ record }">
+                <a-tag :color="{ asset: 'blue', liability: 'orange', equity: 'green', income: 'cyan', expense: 'volcano' }[record.type] || 'default'">{{ record.type }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="Debit" dataIndex="total_debit" align="right" width="120">
+              <template #default="{ record }">Rs. {{ Number(record.total_debit).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Credit" dataIndex="total_credit" align="right" width="120">
+              <template #default="{ record }">Rs. {{ Number(record.total_credit).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Balance" dataIndex="balance" align="right" width="120">
+              <template #default="{ record }">
+                <span :style="{ color: record.balance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }">
+                  Rs. {{ Number(record.balance).toFixed(2) }}
+                </span>
+              </template>
+            </a-table-column>
+          </a-table>
+        </a-card>
+      </a-tab-pane>
+
       <!-- Event P&L -->
       <a-tab-pane key="event-pnl" tab="Event P&L">
         <a-card>
@@ -284,7 +414,7 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { reports as reportsApi, events as eventApi } from '../api/index.js'
+import { reports as reportsApi, events as eventApi, giftStock as giftApi } from '../api/index.js'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 
@@ -310,6 +440,24 @@ const rmDateFrom = ref(dayjs().startOf('year').format('YYYY-MM-DD'))
 const rmDateTo = ref(dayjs().format('YYYY-MM-DD'))
 const retiredMembers = ref([])
 const retiredTotal = ref(0)
+
+const abDateFrom = ref(null)
+const abDateTo = ref(null)
+const accountBalances = ref([])
+const abTotals = reactive({ total_assets: 0, total_liabilities: 0, total_equity: 0, total_income: 0, total_expense: 0, net_income: 0 })
+
+const ghDateFrom = ref(dayjs().startOf('year').format('YYYY-MM-DD'))
+const ghDateTo = ref(dayjs().format('YYYY-MM-DD'))
+const ghGiftId = ref(null)
+const giftOptions = ref([])
+const giftMovements = ref([])
+const giftSummary = reactive({ total_received: 0, total_issued: 0, value_received: 0, value_issued: 0 })
+
+const gniEventId = ref('all')
+const gniEventOptions = ref([])
+const gniEventName = ref('')
+const gniNotIssuedRetirees = ref([])
+const gniNotIssuedCount = ref(0)
 
 async function fetchDashboard() {
   try {
@@ -342,6 +490,7 @@ async function fetchEvents() {
   try {
     const res = await eventApi.list({ per_page: 100 })
     eventOptions.value = (res.data?.items || []).map((e) => ({ label: e.name, value: e.id }))
+    gniEventOptions.value = eventOptions.value
   } catch {}
 }
 
@@ -350,6 +499,17 @@ async function fetchQuarterly() {
     const res = await reportsApi.quarterlySummary({ year: qYear.value })
     Object.assign(qData, res.data)
   } catch { message.error('Failed to load quarterly summary') }
+}
+
+async function fetchAccountBalances() {
+  try {
+    const params = {}
+    if (abDateFrom.value) params.date_from = abDateFrom.value
+    if (abDateTo.value) params.date_to = abDateTo.value
+    const res = await reportsApi.accountBalances(params)
+    accountBalances.value = res.data?.accounts || []
+    Object.assign(abTotals, res.data?.totals || {})
+  } catch { message.error('Failed to load account balances') }
 }
 
 async function fetchRetiredMembers() {
@@ -361,6 +521,37 @@ async function fetchRetiredMembers() {
     retiredMembers.value = res.data?.members || []
     retiredTotal.value = res.data?.total || 0
   } catch { message.error('Failed to load retired members') }
+}
+
+async function fetchGifts() {
+  try {
+    const res = await giftApi.list()
+    giftOptions.value = (res.data || []).map((g) => ({ label: g.name, value: g.id }))
+  } catch {}
+}
+
+async function fetchGiftHistory() {
+  try {
+    const params = {}
+    if (ghDateFrom.value) params.date_from = ghDateFrom.value
+    if (ghDateTo.value) params.date_to = ghDateTo.value
+    if (ghGiftId.value) params.gift_id = ghGiftId.value
+    const res = await reportsApi.giftHistory(params)
+    giftMovements.value = res.data?.movements || []
+    Object.assign(giftSummary, res.data?.summary || {})
+  } catch { message.error('Failed to load gift history') }
+}
+
+async function fetchGiftNotIssued() {
+  try {
+    const params = {}
+    if (gniEventId.value && gniEventId.value !== 'all') params.event_id = gniEventId.value
+    const res = await reportsApi.giftNotIssued(params)
+    gniEventName.value = res.data?.event?.name || ''
+    const retirees = res.data?.event_retirees || []
+    gniNotIssuedRetirees.value = retirees.filter((r) => !r.gift_issued)
+    gniNotIssuedCount.value = res.data?.not_issued_count || 0
+  } catch { message.error('Failed to load gift not issued report') }
 }
 
 async function fetchGlobalBalances() {
@@ -405,5 +596,9 @@ onMounted(() => {
   fetchQuarterly()
   fetchRetiredMembers()
   fetchGlobalBalances()
+  fetchAccountBalances()
+  fetchGifts()
+  fetchGiftHistory()
+  fetchGiftNotIssued()
 })
 </script>

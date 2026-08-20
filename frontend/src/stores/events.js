@@ -31,6 +31,7 @@ export const useEventStore = defineStore('events', {
         this.loading = false
       }
     },
+    async giftIssuance(id) { return await api.giftIssuance(id) },
     async create(data) { return await api.create(data) },
     async update(id, data) { return await api.update(id, data) },
     async updateStatus(id, status) { return await api.updateStatus(id, { status }) },

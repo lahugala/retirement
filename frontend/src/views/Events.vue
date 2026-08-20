@@ -273,7 +273,7 @@ async function addRetiree(event) {
   retireeTarget.value = event
   selectedRetirees.value = []
   try {
-    const res = await membersApi.list({ per_page: 200 })
+    const res = await membersApi.list({ per_page: 1000 })
     memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.nic})`, value: m.name }))
   } catch { memberOptions.value = [] }
   retireeModalVisible.value = true

@@ -42,9 +42,10 @@ CREATE TABLE IF NOT EXISTS members (
     name VARCHAR(255) NOT NULL,
     nic VARCHAR(20) DEFAULT NULL,
     service_no VARCHAR(50) DEFAULT NULL,
+    designation VARCHAR(255) DEFAULT NULL,
     computer_no VARCHAR(50) DEFAULT NULL,
     retirement_date DATE DEFAULT NULL,
-    status ENUM('active','retired','deceased') DEFAULT 'active',
+    status ENUM('active','retired','deceased','resigned','inactive','dismissed') DEFAULT 'active',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
@@ -55,7 +56,7 @@ CREATE TABLE IF NOT EXISTS members (
 CREATE TABLE IF NOT EXISTS events (
     id CHAR(36) PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    retiree_name VARCHAR(255) DEFAULT NULL,
+    retiree_name TEXT DEFAULT NULL,
     event_date DATE DEFAULT NULL,
     quarter TINYINT(1) DEFAULT NULL COMMENT '1=Jan-Apr, 2=May-Aug, 3=Sep-Dec',
     year YEAR DEFAULT NULL,
@@ -139,7 +140,94 @@ CREATE INDEX idx_audit_entity ON audit_log(entity_type, entity_id);
 CREATE INDEX idx_audit_timestamp ON audit_log(timestamp);
 
 -- -----------------------------------------------------------
--- 8. SEED DATA
+-- 8. ACCOUNTS (Chart of Accounts)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS accounts (
+    id CHAR(36) PRIMARY KEY,
+    code VARCHAR(20) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    type ENUM('asset','liability','equity','income','expense') NOT NULL,
+    description TEXT DEFAULT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- Link categories to accounts
+ALTER TABLE categories ADD COLUMN default_account_id CHAR(36) DEFAULT NULL AFTER is_active;
+ALTER TABLE categories ADD CONSTRAINT fk_cat_account FOREIGN KEY (default_account_id) REFERENCES accounts(id);
+
+-- -----------------------------------------------------------
+-- 9. JOURNAL ENTRIES (double-entry headers)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS journal_entries (
+    id CHAR(36) PRIMARY KEY,
+    entry_date DATE NOT NULL,
+    ref_num VARCHAR(50) NOT NULL UNIQUE,
+    description TEXT DEFAULT NULL,
+    reference_type VARCHAR(50) DEFAULT NULL COMMENT 'transaction, manual',
+    reference_id CHAR(36) DEFAULT NULL,
+    created_by CHAR(36) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_je_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_je_date ON journal_entries(entry_date);
+CREATE INDEX idx_je_ref ON journal_entries(reference_type, reference_id);
+
+-- -----------------------------------------------------------
+-- 10. JOURNAL LINES (debit/credit entries)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS journal_lines (
+    id CHAR(36) PRIMARY KEY,
+    journal_entry_id CHAR(36) NOT NULL,
+    account_id CHAR(36) NOT NULL,
+    debit DECIMAL(12,2) DEFAULT 0.00,
+    credit DECIMAL(12,2) DEFAULT 0.00,
+    description TEXT DEFAULT NULL,
+    CONSTRAINT fk_jl_entry FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE,
+    CONSTRAINT fk_jl_account FOREIGN KEY (account_id) REFERENCES accounts(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_jl_entry ON journal_lines(journal_entry_id);
+CREATE INDEX idx_jl_account ON journal_lines(account_id);
+
+-- -----------------------------------------------------------
+-- 11. GIFT STOCK (inventory master + received/issued movements)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS gift_stock (
+    id CHAR(36) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    unit VARCHAR(50) DEFAULT 'piece',
+    unit_price DECIMAL(12,2) DEFAULT 0.00,
+    quantity INT DEFAULT 0,
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS gift_stock_movements (
+    id CHAR(36) PRIMARY KEY,
+    gift_id CHAR(36) NOT NULL,
+    movement_type ENUM('received','issued') NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(12,2) DEFAULT 0.00,
+    event_id CHAR(36) DEFAULT NULL,
+    member_id CHAR(36) DEFAULT NULL,
+    notes TEXT DEFAULT NULL,
+    created_by CHAR(36) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_gsm_gift FOREIGN KEY (gift_id) REFERENCES gift_stock(id) ON DELETE CASCADE,
+    CONSTRAINT fk_gsm_event FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE SET NULL,
+    CONSTRAINT fk_gsm_member FOREIGN KEY (member_id) REFERENCES members(id) ON DELETE SET NULL,
+    CONSTRAINT fk_gsm_created_by FOREIGN KEY (created_by) REFERENCES users(id)
+) ENGINE=InnoDB;
+
+CREATE INDEX idx_gsm_gift ON gift_stock_movements(gift_id);
+CREATE INDEX idx_gsm_type ON gift_stock_movements(movement_type);
+
+-- -----------------------------------------------------------
+-- 12. SEED DATA
 -- -----------------------------------------------------------
 
 -- Default admin (password: password)
@@ -147,19 +235,41 @@ INSERT INTO users (id, name, email, password, role) VALUES
 ('a0000000-0000-0000-0000-000000000001', 'System Admin', 'admin@society.org',
  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
 
+-- Chart of Accounts
+INSERT INTO accounts (id, code, name, type, description) VALUES
+('a1000000-0000-0000-0000-000000000001', '1001', 'Cash', 'asset', 'Cash on hand'),
+('a1000000-0000-0000-0000-000000000002', '1002', 'Bank Account', 'asset', 'Bank current/savings account'),
+('a2000000-0000-0000-0000-000000000001', '2001', 'Accounts Payable', 'liability', 'Amounts owed to vendors'),
+('a3000000-0000-0000-0000-000000000001', '3001', 'Retained Earnings', 'equity', 'Accumulated retained earnings'),
+('a3000000-0000-0000-0000-000000000002', '3002', 'Opening Balance', 'equity', 'Opening balance adjustment'),
+('a4000000-0000-0000-0000-000000000001', '4001', 'Member Dues', 'income', 'Income from member subscription dues'),
+('a4000000-0000-0000-0000-000000000002', '4002', 'Donations', 'income', 'Donation income'),
+('a4000000-0000-0000-0000-000000000003', '4003', 'Event Ticket Sales', 'income', 'Ticket sales income'),
+('a4000000-0000-0000-0000-000000000004', '4004', 'Sponsorships', 'income', 'Sponsorship income'),
+('a4000000-0000-0000-0000-000000000005', '4005', 'Refunds', 'income', 'Refund income'),
+('a4000000-0000-0000-0000-000000000006', '4006', 'Bank Interest', 'income', 'Interest earned on bank deposits'),
+('a5000000-0000-0000-0000-000000000001', '5001', 'Venue', 'expense', 'Venue rental expense'),
+('a5000000-0000-0000-0000-000000000002', '5002', 'Catering', 'expense', 'Catering expense'),
+('a5000000-0000-0000-0000-000000000003', '5003', 'Gift', 'expense', 'Gift expense'),
+('a5000000-0000-0000-0000-000000000004', '5004', 'Decoration', 'expense', 'Decoration expense'),
+('a5000000-0000-0000-0000-000000000005', '5005', 'Printing', 'expense', 'Printing expense'),
+('a5000000-0000-0000-0000-000000000006', '5006', 'Miscellaneous', 'expense', 'Miscellaneous expense');
+
 -- Income categories
-INSERT INTO categories (id, type, name) VALUES
-('c0010000-0000-0000-0000-000000000001', 'income', 'Member Dues'),
-('c0010000-0000-0000-0000-000000000002', 'income', 'Donations'),
-('c0010000-0000-0000-0000-000000000003', 'income', 'Event Ticket Sales'),
-('c0010000-0000-0000-0000-000000000004', 'income', 'Sponsorships'),
-('c0010000-0000-0000-0000-000000000005', 'income', 'Refunds');
+INSERT INTO categories (id, type, name, default_account_id) VALUES
+('c0010000-0000-0000-0000-000000000001', 'income', 'Member Dues', 'a4000000-0000-0000-0000-000000000001'),
+('c0010000-0000-0000-0000-000000000002', 'income', 'Donations', 'a4000000-0000-0000-0000-000000000002'),
+('c0010000-0000-0000-0000-000000000003', 'income', 'Event Ticket Sales', 'a4000000-0000-0000-0000-000000000003'),
+('c0010000-0000-0000-0000-000000000004', 'income', 'Sponsorships', 'a4000000-0000-0000-0000-000000000004'),
+('c0010000-0000-0000-0000-000000000005', 'income', 'Refunds', 'a4000000-0000-0000-0000-000000000005');
 
 -- Expense categories
-INSERT INTO categories (id, type, name) VALUES
-('c0020000-0000-0000-0000-000000000001', 'expense', 'Venue'),
-('c0020000-0000-0000-0000-000000000002', 'expense', 'Catering'),
-('c0020000-0000-0000-0000-000000000003', 'expense', 'Gift'),
-('c0020000-0000-0000-0000-000000000004', 'expense', 'Decoration'),
-('c0020000-0000-0000-0000-000000000005', 'expense', 'Printing'),
-('c0020000-0000-0000-0000-000000000006', 'expense', 'Miscellaneous');
+INSERT INTO categories (id, type, name, default_account_id) VALUES
+('c0020000-0000-0000-0000-000000000001', 'expense', 'Venue', 'a5000000-0000-0000-0000-000000000001'),
+('c0020000-0000-0000-0000-000000000002', 'expense', 'Catering', 'a5000000-0000-0000-0000-000000000002'),
+('c0020000-0000-0000-0000-000000000003', 'expense', 'Gift', 'a5000000-0000-0000-0000-000000000003'),
+('c0020000-0000-0000-0000-000000000004', 'expense', 'Decoration', 'a5000000-0000-0000-0000-000000000004'),
+('c0020000-0000-0000-0000-000000000005', 'expense', 'Printing', 'a5000000-0000-0000-0000-000000000005'),
+('c0020000-0000-0000-0000-000000000006', 'expense', 'Miscellaneous', 'a5000000-0000-0000-0000-000000000006');
+
+

@@ -64,6 +64,67 @@
       </a-col>
     </a-row>
 
+    <!-- Row 1b: More stats -->
+    <a-row :gutter="[16, 16]" style="margin-top: 16px">
+      <a-col :xs="24" :sm="12" :lg="6">
+        <a-card :loading="loading" class="stat-card" :body-style="{ padding: '20px 24px' }">
+          <div class="stat-inner">
+            <div class="stat-icon" style="background: #e6f7ff; color: #1890ff">
+              <TeamOutlined />
+            </div>
+            <div class="stat-body">
+              <a-statistic title="Total Members" :value="data.total_members" :value-style="{ fontSize: '22px' }" />
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :lg="6">
+        <a-card :loading="loading" class="stat-card" :body-style="{ padding: '20px 24px' }">
+          <div class="stat-inner">
+            <div class="stat-icon" style="background: #f6ffed; color: #52c41a">
+              <AuditOutlined />
+            </div>
+            <div class="stat-body">
+              <a-statistic title="Retired Members" :value="data.retired_members" :value-style="{ fontSize: '22px' }" />
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :lg="6">
+        <a-card :loading="loading" class="stat-card" :body-style="{ padding: '20px 24px' }">
+          <div class="stat-inner">
+            <div class="stat-icon" style="background: #fff7e6; color: #fa8c16">
+              <GiftOutlined />
+            </div>
+            <div class="stat-body">
+              <a-statistic title="Gift Stock Value" :value="data.gift_stock_value" prefix="Rs. " :value-style="{ fontSize: '22px' }" />
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+      <a-col :xs="24" :sm="12" :lg="6">
+        <a-card :loading="loading" class="stat-card" :body-style="{ padding: '20px 24px' }">
+          <div class="stat-inner">
+            <div class="stat-icon" style="background: #fff2f0; color: #ff4d4f">
+              <ClockCircleOutlined />
+            </div>
+            <div class="stat-body">
+              <a-statistic title="Pending Approvals" :value="data.pending_approvals" :value-style="{ fontSize: '22px' }" />
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+    </a-row>
+
+    <!-- Row 1c: Monthly trend chart -->
+    <a-row :gutter="[16, 16]" style="margin-top: 16px">
+      <a-col :span="24">
+        <a-card title="Monthly Income vs Expense" :loading="loading">
+          <div ref="trendChartRef" style="height: 300px"></div>
+        </a-card>
+      </a-col>
+    </a-row>
+
     <!-- Row 2: Quarter overview -->
     <a-row :gutter="[16, 16]" style="margin-top: 16px">
       <a-col :span="24">
@@ -188,6 +249,7 @@ const selectedYear = ref(new Date().getFullYear())
 const data = reactive({
   total_income: 0, total_expense: 0, net_balance: 0,
   active_events: 0, pending_approvals: 0,
+  total_members: 0, retired_members: 0, gift_stock_value: 0,
   monthly_trend: [], top_categories: [],
 })
 
@@ -195,7 +257,9 @@ const defaultPeriods = ref([])
 const customEventList = ref([])
 const recentTransactions = ref([])
 const categoryChartRef = ref(null)
+const trendChartRef = ref(null)
 let categoryChartInstance = null
+let trendChartInstance = null
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
 
@@ -238,6 +302,9 @@ async function createQuarter(qNum) {
 async function refreshAll() {
   loading.value = true
   await Promise.all([fetchDashboard(), fetchQuarters(), fetchRecentTransactions()])
+  await nextTick()
+  renderCharts()
+  renderTrendChart()
   loading.value = false
 }
 
@@ -269,6 +336,51 @@ async function fetchRecentTransactions() {
 
 function destroyCharts() {
   if (categoryChartInstance) { categoryChartInstance.destroy(); categoryChartInstance = null }
+  if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null }
+}
+
+async function renderTrendChart() {
+  destroyCharts()
+  try {
+    const { Column } = await import('@antv/g2plot')
+
+    const trendData = (data.monthly_trend || []).map((m) => [
+      { month: m.month, type: 'Income', value: parseFloat(m.income || 0) },
+      { month: m.month, type: 'Expense', value: parseFloat(m.expense || 0) },
+    ]).flat()
+
+    if (trendData.length > 0) {
+      trendChartInstance = new Column(trendChartRef.value, {
+        data: trendData,
+        isGroup: true,
+        xField: 'month',
+        yField: 'value',
+        seriesField: 'type',
+        color: ['#52c41a', '#ff4d4f'],
+        columnStyle: { radius: [4, 4, 0, 0] },
+        legend: { position: 'top' },
+        yAxis: {
+          label: {
+            formatter: (v) => `Rs. ${Number(v).toLocaleString()}`,
+          },
+        },
+        label: {
+          position: 'middle',
+          formatter: (v) => (v.value > 0 ? `Rs. ${Number(v.value).toLocaleString(undefined, { maximumFractionDigits: 0 })}` : ''),
+          style: { fontSize: 9 },
+        },
+        tooltip: {
+          formatter: (datum) => ({
+            name: datum.type,
+            value: `Rs. ${Number(datum.value).toFixed(2)}`,
+          }),
+        },
+      })
+      trendChartInstance.render()
+    }
+  } catch (e) {
+    console.warn('Trend chart skipped:', e.message)
+  }
 }
 
 async function renderCharts() {
@@ -318,6 +430,7 @@ onMounted(async () => {
   await Promise.all([fetchDashboard(), fetchQuarters(), fetchRecentTransactions()])
   await nextTick()
   renderCharts()
+  renderTrendChart()
   loading.value = false
 })
 

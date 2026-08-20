@@ -37,6 +37,14 @@
           <TagsOutlined />
           <span>Categories</span>
         </a-menu-item>
+        <a-menu-item key="accounts" v-if="canAccess('accounts')">
+          <AccountBookOutlined />
+          <span>Accounts</span>
+        </a-menu-item>
+        <a-menu-item key="giftstock" v-if="canAccess('giftstock')">
+          <ShoppingOutlined />
+          <span>Gift Stock</span>
+        </a-menu-item>
         <a-menu-item key="audit" v-if="canAccess('audit')">
           <SafetyOutlined />
           <span>Audit Log</span>
@@ -154,6 +162,8 @@ const pageTitle = computed(() => {
     members: 'Members',
     users: 'Users',
     categories: 'Income & Expense Categories',
+    accounts: 'Chart of Accounts',
+    giftstock: 'Gift Stock',
     auditlog: 'Audit Trail',
   }
   return titles[route.name?.toLowerCase()] || 'Retirement Society'
@@ -191,6 +201,8 @@ function navigate({ key }) {
     members: 'Members',
     users: 'Users',
     categories: 'Categories',
+    accounts: 'Accounts',
+    giftstock: 'GiftStock',
     audit: 'AuditLog',
   }
   const name = routeMap[key]
@@ -266,7 +278,7 @@ onUnmounted(() => {
 }
 
 .top-header {
-  background: #fff !important;
+  background: #d9f2d0 !important;
   padding: 0 24px;
   display: flex;
   align-items: center;
