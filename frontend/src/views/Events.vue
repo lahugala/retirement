@@ -128,7 +128,7 @@
     <a-modal v-model:visible="retireeModalVisible" title="Add Retiree(s)" @ok="confirmRetiree" :confirm-loading="retireeSaving" destroyOnClose>
       <a-form layout="vertical">
         <a-form-item label="Select Members" required>
-          <a-select v-model:value="selectedRetirees" mode="multiple" placeholder="Search and select members" style="width: 100%" :options="memberOptions" :filter-option="(input, option) => option.label.toLowerCase().includes(input.toLowerCase())" />
+          <a-select v-model:value="selectedRetirees" mode="multiple" placeholder="Search by name or computer number" style="width: 100%" :options="memberOptions" :filter-option="(input, option) => { const s = input.toLowerCase(); return option.label.toLowerCase().includes(s) || (option.computer_no && option.computer_no.toLowerCase().includes(s)); }" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -274,7 +274,7 @@ async function addRetiree(event) {
   selectedRetirees.value = []
   try {
     const res = await membersApi.list({ per_page: 1000 })
-    memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.nic})`, value: m.name }))
+    memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.computer_no || 'N/A'}) - ${m.nic || ''}`, value: m.name, computer_no: m.computer_no }))
   } catch { memberOptions.value = [] }
   retireeModalVisible.value = true
 }

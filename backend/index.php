@@ -21,6 +21,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/config/app.php';
 require_once __DIR__ . '/helpers/Response.php';
 
+// Serve uploaded files directly (must run before URI parsing)
+$requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+if (preg_match('#/uploads/(.+)$#', $requestUri, $m)) {
+    $file = __DIR__ . '/uploads/' . basename($m[1]);
+    if (file_exists($file)) {
+        $ext = pathinfo($file, PATHINFO_EXTENSION);
+        $mimeTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'pdf' => 'application/pdf'];
+        header('Content-Type: ' . ($mimeTypes[$ext] ?? 'application/octet-stream'));
+        readfile($file);
+        exit;
+    }
+    Response::error('File not found', 404);
+}
+
 // Route matching
 $method = $_SERVER['REQUEST_METHOD'];
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
@@ -148,19 +162,6 @@ function matchRoute(string $method, string $uri, array $routes): ?array {
         }
     }
     return null;
-}
-
-// Serve uploaded files directly
-if (preg_match('#^/uploads/(.+)$#', $uri, $m)) {
-    $file = __DIR__ . '/uploads/' . basename($m[1]);
-    if (file_exists($file)) {
-        $ext = pathinfo($file, PATHINFO_EXTENSION);
-        $mimeTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'pdf' => 'application/pdf'];
-        header('Content-Type: ' . ($mimeTypes[$ext] ?? 'application/octet-stream'));
-        readfile($file);
-        exit;
-    }
-    Response::error('File not found', 404);
 }
 
 $matched = matchRoute($method, $uri, $routes);

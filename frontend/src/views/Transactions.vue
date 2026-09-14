@@ -52,7 +52,17 @@
         <a-table-column title="Account" dataIndex="account_name" width="120">
           <template #default="{ record }">{{ record.account_code }} {{ record.account_name || '-' }}</template>
         </a-table-column>
-        <a-table-column title="Description" dataIndex="description" ellipsis min-width="150" />
+        <a-table-column title="Description" dataIndex="description" width="120">
+          <template #default="{ record }">
+            <a-popover v-if="record.description" trigger="click" placement="top">
+              <template #content>
+                <div style="max-width: 360px; white-space: pre-wrap; font-size: 13px">{{ record.description }}</div>
+              </template>
+              <a type="button" style="font-size: 12px">View</a>
+            </a-popover>
+            <span v-else style="color: #999">-</span>
+          </template>
+        </a-table-column>
         <a-table-column title="Payee" dataIndex="payee" width="120" />
         <a-table-column title="Amount" dataIndex="amount" width="100" align="right">
           <template #default="{ record }">Rs. {{ Number(record.amount).toFixed(2) }}</template>
@@ -66,13 +76,15 @@
           </template>
         </a-table-column>
         <a-table-column title="Event" dataIndex="event_name" ellipsis width="120" />
-        <a-table-column title="Created By" dataIndex="created_by_name" width="120" />
-        <a-table-column title="Actions" width="180" fixed="right">
+        <a-table-column title="Actions" width="220" fixed="right">
           <template #default="{ record }">
             <a-space>
               <a-button size="small" @click="showEditModal(record)" v-if="canEdit(record)">Edit</a-button>
               <a-button size="small" type="primary" v-if="canApprove && record.status === 'pending_approval'" @click="handleApprove(record)">Approve</a-button>
               <a-button size="small" danger v-if="canApprove && record.status === 'pending_approval'" @click="handleReject(record)">Reject</a-button>
+              <a-popconfirm title="Delete this transaction?" ok-text="Delete" cancel-text="Cancel" @confirm="handleDelete(record)" v-if="canDelete">
+                <a-button size="small" danger>Delete</a-button>
+              </a-popconfirm>
             </a-space>
           </template>
         </a-table-column>
@@ -143,6 +155,18 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- Receipt Preview Modal -->
+    <a-modal v-model:visible="previewVisible" title="Receipt Preview" :footer="null" :width="'100%'" :style="{ top: '0', padding: '0', maxWidth: '100vw' }" :bodyStyle="{ padding: '0', height: 'calc(100vh - 55px)', overflow: 'auto' }" destroyOnClose>
+      <template #closeText><CloseOutlined /></template>
+      <div v-if="previewUrl" style="display: flex; align-items: center; justify-content: center; height: 100%; background: #f5f5f5">
+        <img v-if="previewType === 'image'" :src="previewUrl" style="max-width: 100%; max-height: 100%; object-fit: contain" />
+        <iframe v-else-if="previewType === 'pdf'" :src="previewUrl" style="width: 100%; height: 100%; border: none"></iframe>
+        <div v-else style="padding: 32px; color: #999">
+          <a-button type="link" :href="previewUrl" target="_blank">Download File</a-button>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -168,6 +192,9 @@ const fileList = ref([])
 const categoriesList = ref([])
 const eventsList = ref([])
 const membersList = ref([])
+const previewVisible = ref(false)
+const previewUrl = ref('')
+const previewType = ref('')
 const filters = reactive({
   type: route.query.status ? '' : (route.query.type || ''),
   status: route.query.status || '',
@@ -178,6 +205,7 @@ const filters = reactive({
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
 const canApprove = computed(() => auth.canApprove)
+const canDelete = computed(() => auth.user?.role === 'admin')
 const canEdit = computed(() => (record) => {
   if (!['admin', 'treasurer'].includes(auth.user?.role) && record.created_by !== auth.user?.id) return false
   if (record.event_status && ['completed', 'cancelled'].includes(record.event_status)) return false
@@ -350,6 +378,14 @@ function handleApprove(record) {
   })
 }
 
+async function handleDelete(record) {
+  try {
+    await store.delete(record.id, 'Deleted by admin')
+    message.success('Transaction deleted')
+    await fetchData()
+  } catch (e) { message.error(e?.message || 'Failed') }
+}
+
 function handleReject(record) {
   rejectTarget.value = record
   rejectReason.value = ''
@@ -369,7 +405,18 @@ async function confirmReject() {
 }
 
 function viewReceipt(record) {
-  if (record.receipt_path) window.open(record.receipt_path, '_blank')
+  if (!record.receipt_path) return
+  const url = record.receipt_path.startsWith('http') ? record.receipt_path : '/retirement/backend' + record.receipt_path
+  const ext = record.receipt_path.split('.').pop().toLowerCase()
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+    previewType.value = 'image'
+  } else if (ext === 'pdf') {
+    previewType.value = 'pdf'
+  } else {
+    previewType.value = 'other'
+  }
+  previewUrl.value = url
+  previewVisible.value = true
 }
 
 async function loadFilterMembers() {

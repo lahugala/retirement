@@ -75,6 +75,15 @@ class ReportController {
         ");
         $topCategories->execute([$year]);
 
+        // Yearly retired member count (all years with data)
+        $yearlyRetirements = $pdo->query("
+            SELECT YEAR(retirement_date) AS year, COUNT(*) AS count
+            FROM members
+            WHERE retirement_date IS NOT NULL
+            GROUP BY YEAR(retirement_date)
+            ORDER BY year ASC
+        ")->fetchAll();
+
         Response::success([
             'total_income'     => $totalIncome,
             'total_expense'    => $totalExpense,
@@ -85,6 +94,7 @@ class ReportController {
             'retired_members'  => (int)$retiredMembers,
             'gift_stock_value' => round((float)$giftStockValue, 2),
             'monthly_trend'    => $monthly,
+            'yearly_retirements' => $yearlyRetirements,
             'top_categories'   => $topCategories->fetchAll(),
         ]);
     }

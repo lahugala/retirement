@@ -125,6 +125,15 @@
       </a-col>
     </a-row>
 
+    <!-- Row 1d: Yearly retirements chart -->
+    <a-row :gutter="[16, 16]" style="margin-top: 16px">
+      <a-col :span="24">
+        <a-card title="Yearly Retired Members" :loading="loading">
+          <div ref="retirementChartRef" style="height: 280px"></div>
+        </a-card>
+      </a-col>
+    </a-row>
+
     <!-- Row 2: Quarter overview -->
     <a-row :gutter="[16, 16]" style="margin-top: 16px">
       <a-col :span="24">
@@ -250,7 +259,7 @@ const data = reactive({
   total_income: 0, total_expense: 0, net_balance: 0,
   active_events: 0, pending_approvals: 0,
   total_members: 0, retired_members: 0, gift_stock_value: 0,
-  monthly_trend: [], top_categories: [],
+  monthly_trend: [], yearly_retirements: [], top_categories: [],
 })
 
 const defaultPeriods = ref([])
@@ -258,8 +267,10 @@ const customEventList = ref([])
 const recentTransactions = ref([])
 const categoryChartRef = ref(null)
 const trendChartRef = ref(null)
+const retirementChartRef = ref(null)
 let categoryChartInstance = null
 let trendChartInstance = null
+let retirementChartInstance = null
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
 
@@ -305,6 +316,7 @@ async function refreshAll() {
   await nextTick()
   renderCharts()
   renderTrendChart()
+  renderRetirementChart()
   loading.value = false
 }
 
@@ -337,10 +349,10 @@ async function fetchRecentTransactions() {
 function destroyCharts() {
   if (categoryChartInstance) { categoryChartInstance.destroy(); categoryChartInstance = null }
   if (trendChartInstance) { trendChartInstance.destroy(); trendChartInstance = null }
+  if (retirementChartInstance) { retirementChartInstance.destroy(); retirementChartInstance = null }
 }
 
 async function renderTrendChart() {
-  destroyCharts()
   try {
     const { Column } = await import('@antv/g2plot')
 
@@ -380,6 +392,49 @@ async function renderTrendChart() {
     }
   } catch (e) {
     console.warn('Trend chart skipped:', e.message)
+  }
+}
+
+async function renderRetirementChart() {
+  if (retirementChartInstance) { retirementChartInstance.destroy(); retirementChartInstance = null }
+  try {
+    const { Column } = await import('@antv/g2plot')
+
+    const chartData = (data.yearly_retirements || []).map((r) => ({
+      year: String(r.year),
+      count: Number(r.count),
+    }))
+
+    if (chartData.length > 0) {
+      retirementChartInstance = new Column(retirementChartRef.value, {
+        data: chartData,
+        xField: 'year',
+        yField: 'count',
+        color: '#1890ff',
+        columnStyle: { radius: [4, 4, 0, 0] },
+        legend: false,
+        yAxis: {
+          minInterval: 1,
+          label: {
+            formatter: (v) => `${Number(v).toLocaleString()}`,
+          },
+        },
+        label: {
+          position: 'middle',
+          formatter: (v) => (v.value > 0 ? `${v.value}` : ''),
+          style: { fontSize: 10, fontWeight: 600 },
+        },
+        tooltip: {
+          formatter: (datum) => ({
+            name: 'Retirements',
+            value: `${datum.count} member(s)`,
+          }),
+        },
+      })
+      retirementChartInstance.render()
+    }
+  } catch (e) {
+    console.warn('Retirement chart skipped:', e.message)
   }
 }
 
@@ -429,8 +484,10 @@ onMounted(async () => {
   loading.value = true
   await Promise.all([fetchDashboard(), fetchQuarters(), fetchRecentTransactions()])
   await nextTick()
+  destroyCharts()
   renderCharts()
   renderTrendChart()
+  renderRetirementChart()
   loading.value = false
 })
 

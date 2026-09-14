@@ -33,7 +33,7 @@
                         <div><strong>Retirement:</strong> {{ r.retirement_date || '-' }}</div>
                       </div>
                     </template>
-                    <a-tag color="blue" style="margin: 2px; cursor: pointer">{{ r.name }}</a-tag>
+                    <a-tag color="blue" closable style="margin: 2px; cursor: pointer" @close="removeRetiree(r.name)" @click.stop>{{ r.name }}</a-tag>
                   </a-popover>
                 </template>
                 <a-button type="link" size="small" @click="showRetireeModal" v-if="canEdit">+ Add</a-button>
@@ -260,7 +260,7 @@
     <a-modal v-model:visible="retireeModalVisible" title="Add Retiree(s)" @ok="confirmRetiree" :confirm-loading="retireeSaving" destroyOnClose>
       <a-form layout="vertical">
         <a-form-item label="Select Members" required>
-          <a-select v-model:value="selectedRetirees" mode="multiple" placeholder="Search and select members" style="width: 100%" :options="memberOptions" :filter-option="(input, option) => option.label.toLowerCase().includes(input.toLowerCase())" />
+          <a-select v-model:value="selectedRetirees" mode="multiple" placeholder="Search by name or computer number" style="width: 100%" :options="memberOptions" :filter-option="(input, option) => { const s = input.toLowerCase(); return option.label.toLowerCase().includes(s) || (option.computer_no && option.computer_no.toLowerCase().includes(s)); }" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -538,7 +538,7 @@ async function showRetireeModal() {
   selectedRetirees.value = []
   try {
     const res = await membersApi.list({ per_page: 1000 })
-    memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.nic})`, value: m.name }))
+    memberOptions.value = (res.data?.items || []).map((m) => ({ label: `${m.name} (${m.computer_no || 'N/A'}) - ${m.nic || ''}`, value: m.name, computer_no: m.computer_no }))
   } catch { memberOptions.value = [] }
   retireeModalVisible.value = true
 }
@@ -555,6 +555,16 @@ async function confirmRetiree() {
     await fetchEvent()
   } catch (e) { message.error(e?.message || 'Failed') }
   finally { retireeSaving.value = false }
+}
+
+async function removeRetiree(name) {
+  const names = event.value.retiree_name ? event.value.retiree_name.split(', ').filter(Boolean) : []
+  const updated = names.filter((n) => n !== name)
+  try {
+    await store.update(route.params.id, { retiree_name: updated.join(', ') })
+    message.success(`${name} removed`)
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
 }
 
 function showIssueGiftModal() {

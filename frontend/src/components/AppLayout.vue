@@ -78,22 +78,6 @@
             </template>
           </a-dropdown>
 
-          <!-- Pending approvals -->
-          <a-badge :count="pendingCount" :overflow-count="99" class="pending-badge" v-if="canApprove">
-            <a-tooltip title="Pending approvals">
-              <a-button shape="circle" :class="['pending-btn', { 'has-pending': pendingCount > 0 }]" @click="goToPending">
-                <ClockCircleOutlined />
-              </a-button>
-            </a-tooltip>
-          </a-badge>
-
-          <!-- Notification bell (placeholder for future) -->
-          <a-tooltip title="Notifications (coming soon)">
-            <a-button shape="circle" class="header-icon-btn">
-              <BellOutlined />
-            </a-button>
-          </a-tooltip>
-
           <!-- User dropdown -->
           <a-dropdown placement="bottomRight">
             <div class="user-dropdown-trigger">
@@ -101,7 +85,7 @@
                 {{ userInitials }}
               </a-avatar>
               <span class="user-name">{{ auth.user?.name }}</span>
-              <DownOutlined style="font-size: 10px; color: #999" />
+              <DownOutlined style="font-size: 10px; color: rgba(255,255,255,0.45)" />
             </div>
             <template #overlay>
               <a-menu>
@@ -139,18 +123,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { canAccess as checkAccess } from '../utils/permissions.js'
-import { transactions as txnApi } from '../api/index.js'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
-const pendingCount = ref(0)
-let pollInterval = null
 
 const pageTitle = computed(() => {
   const titles = {
@@ -185,7 +166,6 @@ const roleColor = computed(() => {
   const colors = { admin: '#f5222d', treasurer: '#faad14', organizer: '#1890ff', board: '#722ed1', member: '#52c41a' }
   return colors[auth.user?.role] || '#1890ff'
 })
-const canApprove = computed(() => auth.canApprove)
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
 
 function canAccess(menu) {
@@ -209,10 +189,6 @@ function navigate({ key }) {
   if (name) router.push({ name })
 }
 
-function goToPending() {
-  router.push({ name: 'Transactions', query: { status: 'pending_approval' } })
-}
-
 function handleQuickAction({ key }) {
   if (key === 'transaction') {
     router.push({ name: 'Transactions', query: { quick_add: '1' } })
@@ -225,23 +201,6 @@ function logout() {
   auth.logout()
   router.push('/login')
 }
-
-async function fetchPendingCount() {
-  if (!canApprove.value) return
-  try {
-    const res = await txnApi.list({ status: 'pending_approval', per_page: 1 })
-    pendingCount.value = res.data.total || 0
-  } catch {}
-}
-
-onMounted(() => {
-  fetchPendingCount()
-  pollInterval = setInterval(fetchPendingCount, 30000)
-})
-
-onUnmounted(() => {
-  if (pollInterval) clearInterval(pollInterval)
-})
 </script>
 
 <style scoped>
@@ -278,7 +237,7 @@ onUnmounted(() => {
 }
 
 .top-header {
-  background: #d9f2d0 !important;
+  background: #001529 !important;
   padding: 0 24px;
   display: flex;
   align-items: center;
@@ -307,19 +266,19 @@ onUnmounted(() => {
   font-size: 18px;
   cursor: pointer;
   transition: color 0.3s;
-  color: #666;
+  color: rgba(255,255,255,0.65);
   padding: 4px;
   border-radius: 4px;
 }
 .trigger:hover {
-  color: #1890ff;
-  background: #f0f5ff;
+  color: #fff;
+  background: rgba(255,255,255,0.1);
 }
 
 .page-title {
   font-size: 16px;
   font-weight: 600;
-  color: #262626;
+  color: #fff;
   white-space: nowrap;
 }
 
@@ -328,40 +287,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   border-radius: 6px;
-}
-
-.pending-badge {
-  margin-right: 4px;
-}
-
-.pending-btn {
-  border: 1px solid #d9d9d9;
-  color: #8c8c8c;
-  transition: all 0.3s;
-}
-.pending-btn:hover {
-  color: #faad14;
-  border-color: #faad14;
-}
-.pending-btn.has-pending {
-  color: #faad14;
-  border-color: #faad14;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 173, 20, 0.3); }
-  50% { box-shadow: 0 0 0 6px rgba(250, 173, 20, 0); }
-}
-
-.header-icon-btn {
-  border: 1px solid #d9d9d9;
-  color: #8c8c8c;
-  transition: all 0.3s;
-}
-.header-icon-btn:hover {
-  color: #1890ff;
-  border-color: #1890ff;
 }
 
 .user-dropdown-trigger {
@@ -375,7 +300,7 @@ onUnmounted(() => {
   margin-left: 4px;
 }
 .user-dropdown-trigger:hover {
-  background: #f5f5f5;
+  background: rgba(255,255,255,0.1);
 }
 
 .user-name {
@@ -384,7 +309,7 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 14px;
-  color: #262626;
+  color: rgba(255,255,255,0.85);
 }
 
 :deep(.user-dropdown-header) {

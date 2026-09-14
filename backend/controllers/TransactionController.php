@@ -191,8 +191,8 @@ class TransactionController {
             Response::error('You can only edit your own transactions', 403);
         }
 
-        // Cannot edit if approved
-        if ($old['status'] === 'approved' && !in_array($role, ['admin'])) {
+        // Cannot edit if approved (admin and treasurer can)
+        if ($old['status'] === 'approved' && !in_array($role, ['admin', 'treasurer'])) {
             Response::error('Cannot edit an approved transaction', 403);
         }
 
