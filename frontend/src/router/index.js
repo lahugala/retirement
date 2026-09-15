@@ -20,6 +20,7 @@ const routes = [
       { path: 'gift-stock', name: 'GiftStock', component: () => import('../views/GiftStock.vue') },
       { path: 'reports', name: 'Reports', component: () => import('../views/Reports.vue') },
       { path: 'audit', name: 'AuditLog', component: () => import('../views/AuditLog.vue') },
+      { path: 'settings', name: 'Settings', component: () => import('../views/Settings.vue') },
     ],
   },
 ]

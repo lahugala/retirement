@@ -63,7 +63,11 @@
                 Rs. {{ Number((q.event.budget_allocated || 0) - (q.totalExpense || 0)).toFixed(2) }}
               </a-descriptions-item>
               <a-descriptions-item label="Retirees">
-                {{ q.event.retiree_name || '-' }}
+                <template v-if="q.event?.retiree_name">
+                  <a-tag color="blue" style="margin: 0">{{ countRetirees(q.event.retiree_name) }} Member(s)</a-tag>
+                  <a-button type="link" size="small" style="padding: 0" @click.stop="showRetireeList(q.event)">View</a-button>
+                </template>
+                <span v-else>-</span>
               </a-descriptions-item>
             </a-descriptions>
 
@@ -114,7 +118,13 @@
                   Rs. {{ Number(evt.total_expense || 0).toFixed(2) }}
                 </span>
               </a-descriptions-item>
-              <a-descriptions-item label="Retirees">{{ evt.retiree_name || '-' }}</a-descriptions-item>
+              <a-descriptions-item label="Retirees">
+                <template v-if="evt.retiree_name">
+                  <a-tag color="blue" style="margin: 0">{{ countRetirees(evt.retiree_name) }} Member(s)</a-tag>
+                  <a-button type="link" size="small" style="padding: 0" @click.stop="showRetireeList(evt)">View</a-button>
+                </template>
+                <span v-else>-</span>
+              </a-descriptions-item>
             </a-descriptions>
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end">
               <a-button size="small" @click.stop="$router.push(`/events/${evt.id}`)">Manage</a-button>
@@ -131,6 +141,28 @@
           <a-select v-model:value="selectedRetirees" mode="multiple" placeholder="Search by name or computer number" style="width: 100%" :options="memberOptions" :filter-option="(input, option) => { const s = input.toLowerCase(); return option.label.toLowerCase().includes(s) || (option.computer_no && option.computer_no.toLowerCase().includes(s)); }" />
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <!-- Retiree List Modal -->
+    <a-modal v-model:visible="retireeListVisible" title="Retiree List" :footer="null" width="700" destroyOnClose>
+      <a-table :dataSource="retireeListData" rowKey="name" size="small" :pagination="false">
+        <a-table-column title="#" width="50">
+          <template #default="{ index }">{{ index + 1 }}</template>
+        </a-table-column>
+        <a-table-column title="Name" dataIndex="name" />
+        <a-table-column title="NIC" dataIndex="nic" width="120">
+          <template #default="{ record }">{{ record.nic || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Computer No" dataIndex="computer_no" width="120">
+          <template #default="{ record }">{{ record.computer_no || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Service No" dataIndex="service_no" width="120">
+          <template #default="{ record }">{{ record.service_no || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Retirement" dataIndex="retirement_date" width="120">
+          <template #default="{ record }">{{ record.retirement_date || '-' }}</template>
+        </a-table-column>
+      </a-table>
     </a-modal>
 
     <!-- Custom Event Creator Modal -->
@@ -172,6 +204,8 @@ const retireeTarget = ref(null)
 const selectedRetirees = ref([])
 const memberOptions = ref([])
 const retireeSaving = ref(false)
+const retireeListVisible = ref(false)
+const retireeListData = ref([])
 
 const generateModalVisible = ref(false)
 const generating = ref(false)
@@ -191,12 +225,11 @@ function removePeriod(index) {
 }
 
 const availableYears = computed(() => {
-  const years = new Set([new Date().getFullYear()])
+  const years = new Set()
   allEvents.value.forEach((e) => { if (e.year) years.add(Number(e.year)) })
-  const sorted = [...years].sort((a, b) => b - a)
-  // Ensure at least current year + next 2 years
-  for (let i = 0; i < 3; i++) sorted.push(new Date().getFullYear() + i)
-  return [...new Set(sorted)].sort((a, b) => b - a)
+  const currentYear = new Date().getFullYear()
+  for (let y = currentYear - 10; y <= currentYear + 5; y++) years.add(y)
+  return [...years].sort((a, b) => b - a)
 })
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
@@ -293,6 +326,25 @@ async function confirmRetiree() {
   finally { retireeSaving.value = false }
 }
 
+function countRetirees(retireeName) {
+  return retireeName ? retireeName.split(',').filter((s) => s.trim()).length : 0
+}
+
+async function showRetireeList(event) {
+  const names = (event.retiree_name || '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (names.length === 0) { retireeListData.value = []; retireeListVisible.value = true; return }
+  try {
+    const res = await membersApi.list({ per_page: 1000 })
+    const members = res.data?.items || []
+    const map = {}
+    members.forEach((m) => { map[m.name.toLowerCase()] = m })
+    retireeListData.value = names.map((n) => map[n.toLowerCase()] || { name: n })
+  } catch {
+    retireeListData.value = names.map((n) => ({ name: n }))
+  }
+  retireeListVisible.value = true
+}
+
 function showCreateMissing() {
   missingQuarters.value.forEach((qNum) => createQuarter(qNum))
 }
@@ -340,8 +392,3 @@ async function confirmGenerate() {
 onMounted(fetchData)
 </script>
 
-<style scoped>
-.ant-card-hoverable:hover {
-  border-color: #1890ff;
-}
-</style>

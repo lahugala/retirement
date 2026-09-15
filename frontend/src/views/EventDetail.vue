@@ -23,19 +23,8 @@
             </a-descriptions-item>
             <a-descriptions-item label="Retiree(s)">
               <div v-if="event?.retiree_name">
-                <template v-for="r in retireeDetails" :key="r.name">
-                  <a-popover trigger="click" placement="right">
-                    <template #content>
-                      <div style="font-size: 13px">
-                        <div><strong>NIC:</strong> {{ r.nic || '-' }}</div>
-                        <div><strong>Service No:</strong> {{ r.service_no || '-' }}</div>
-                        <div><strong>Computer No:</strong> {{ r.computer_no || '-' }}</div>
-                        <div><strong>Retirement:</strong> {{ r.retirement_date || '-' }}</div>
-                      </div>
-                    </template>
-                    <a-tag color="blue" closable style="margin: 2px; cursor: pointer" @close="removeRetiree(r.name)" @click.stop>{{ r.name }}</a-tag>
-                  </a-popover>
-                </template>
+                <a-tag color="blue" style="margin: 2px">{{ retireeDetails.length }} Member(s)</a-tag>
+                <a-button type="link" size="small" @click="retireeListVisible = true">View All</a-button>
                 <a-button type="link" size="small" @click="showRetireeModal" v-if="canEdit">+ Add</a-button>
               </div>
               <span v-else>
@@ -70,7 +59,23 @@
               <a-tag :color="statusColor(event?.status)">{{ event?.status }}</a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="Organizer">{{ event?.organizer_name }}</a-descriptions-item>
-            <a-descriptions-item label="Total Budget">Rs. {{ Number(event?.budget_allocated || 0).toFixed(2) }}</a-descriptions-item>
+            <a-descriptions-item label="Total Budget">
+              <template v-if="editingBudget && canEdit">
+                <a-input-number v-model:value="budgetFormValue" :min="0" :step="100" style="width: 160px" size="small" autofocus prefix="Rs." />
+                <a-button type="link" size="small" @click="saveBudget" :loading="savingBudget">
+                  <CheckOutlined />
+                </a-button>
+                <a-button type="link" size="small" @click="cancelEditBudget">
+                  <CloseOutlined />
+                </a-button>
+              </template>
+              <template v-else>
+                Rs. {{ Number(event?.budget_allocated || 0).toFixed(2) }}
+                <a-button type="link" size="small" @click="startEditBudget" v-if="canEdit">
+                  <EditOutlined />
+                </a-button>
+              </template>
+            </a-descriptions-item>
             <a-descriptions-item label="Notes">
               <template v-if="editingNotes && canEdit">
                 <a-textarea
@@ -109,8 +114,15 @@
           </template>
           <a-table :dataSource="event?.budgets || []" rowKey="id" size="small" :pagination="false">
             <a-table-column title="Category" dataIndex="category_name" />
-            <a-table-column title="Planned" dataIndex="planned_amount" align="right">
-              <template #default="{ record }">Rs. {{ Number(record.planned_amount).toFixed(2) }}</template>
+            <a-table-column title="Planned" dataIndex="planned_amount" align="right" width="180">
+              <template #default="{ record }">
+                <div v-if="editingBudgetLine === record.id" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px">
+                  <a-input-number v-model:value="budgetLineFormValue" :min="0" :step="10" size="small" style="width: 120px" @press-enter="saveBudgetLine" />
+                  <a-button type="link" size="small" @click="saveBudgetLine" :loading="savingBudgetLine"><CheckOutlined /></a-button>
+                  <a-button type="link" size="small" @click="editingBudgetLine = null"><CloseOutlined /></a-button>
+                </div>
+                <a v-else style="cursor: pointer" @click="startEditBudgetLine(record)">Rs. {{ Number(record.planned_amount).toFixed(2) }}</a>
+              </template>
             </a-table-column>
             <a-table-column title="Actual" dataIndex="actual_spent" align="right">
               <template #default="{ record }">Rs. {{ Number(record.actual_spent).toFixed(2) }}</template>
@@ -265,6 +277,35 @@
       </a-form>
     </a-modal>
 
+    <!-- Retiree List Modal -->
+    <a-modal v-model:visible="retireeListVisible" title="Retiree List" :footer="null" width="700" destroyOnClose>
+      <a-table :dataSource="retireeDetails" rowKey="name" size="small" :pagination="false">
+        <a-table-column title="#" width="50">
+          <template #default="{ index }">{{ index + 1 }}</template>
+        </a-table-column>
+        <a-table-column title="Name" dataIndex="name" />
+        <a-table-column title="NIC" dataIndex="nic" width="120">
+          <template #default="{ record }">{{ record.nic || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Computer No" dataIndex="computer_no" width="120">
+          <template #default="{ record }">{{ record.computer_no || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Service No" dataIndex="service_no" width="120">
+          <template #default="{ record }">{{ record.service_no || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Retirement" dataIndex="retirement_date" width="120">
+          <template #default="{ record }">{{ record.retirement_date || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="" width="80" v-if="canEdit">
+          <template #default="{ record }">
+            <a-popconfirm title="Remove this member?" ok-text="Remove" cancel-text="Cancel" @confirm="removeRetiree(record.name)">
+              <a-button size="small" danger type="link">Remove</a-button>
+            </a-popconfirm>
+          </template>
+        </a-table-column>
+      </a-table>
+    </a-modal>
+
     <!-- Issue Gift Modal -->
     <a-modal v-model:visible="issueGiftModalVisible" title="Issue Gift to Retiree" @ok="confirmIssueGift" :confirm-loading="issueGiftSubmitting" ok-text="Issue Gift" destroyOnClose>
       <a-form layout="vertical">
@@ -342,7 +383,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useEventStore } from '../stores/events.js'
 import { useAuthStore } from '../stores/auth.js'
-import { categories as catApi, members as membersApi, reports as reportsApi, giftStock as giftStockApi } from '../api/index.js'
+import { categories as catApi, members as membersApi, reports as reportsApi, giftStock as giftStockApi, budgets as budgetsApi } from '../api/index.js'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
 
@@ -405,6 +446,31 @@ async function saveDate() {
   finally { savingDate.value = false }
 }
 
+// Budget editing
+const editingBudget = ref(false)
+const budgetFormValue = ref(0)
+const savingBudget = ref(false)
+
+function startEditBudget() {
+  budgetFormValue.value = event.value?.budget_allocated || 0
+  editingBudget.value = true
+}
+
+function cancelEditBudget() {
+  editingBudget.value = false
+}
+
+async function saveBudget() {
+  savingBudget.value = true
+  try {
+    await store.update(route.params.id, { budget_allocated: budgetFormValue.value || 0 })
+    message.success('Budget updated')
+    editingBudget.value = false
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
+  finally { savingBudget.value = false }
+}
+
 // Notes editing
 const editingNotes = ref(false)
 const notesFormValue = ref('')
@@ -433,6 +499,7 @@ const cancelModalVisible = ref(false)
 const cancelling = ref(false)
 const cancelReason = ref('')
 const retireeModalVisible = ref(false)
+const retireeListVisible = ref(false)
 const selectedRetirees = ref([])
 const memberOptions = ref([])
 const retireeSaving = ref(false)
@@ -665,6 +732,26 @@ async function deleteBudget(id) {
     message.success('Budget line deleted')
     await fetchEvent()
   } catch (e) { message.error(e?.message || 'Failed') }
+}
+
+const editingBudgetLine = ref(null)
+const budgetLineFormValue = ref(0)
+const savingBudgetLine = ref(false)
+
+function startEditBudgetLine(record) {
+  budgetLineFormValue.value = record.planned_amount
+  editingBudgetLine.value = record.id
+}
+
+async function saveBudgetLine() {
+  savingBudgetLine.value = true
+  try {
+    await budgetsApi.update(editingBudgetLine.value, { planned_amount: budgetLineFormValue.value || 0 })
+    message.success('Planned amount updated')
+    editingBudgetLine.value = null
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
+  finally { savingBudgetLine.value = false }
 }
 
 onMounted(fetchEvent)

@@ -34,9 +34,6 @@
           <a-date-picker v-model:value="filters.date_to" placeholder="To" style="width: 100%" @change="fetchData" value-format="YYYY-MM-DD" />
         </a-col>
         <a-col :xs="24" :sm="12" :md="4">
-          <a-select v-model:value="filters.designated_retiree" placeholder="Retiree" allow-clear style="width: 100%" @change="fetchData" :options="memberOptions" />
-        </a-col>
-        <a-col :xs="24" :sm="12" :md="4">
           <a-button @click="resetFilters">Reset</a-button>
         </a-col>
       </a-row>
@@ -69,17 +66,18 @@
         </a-table-column>
         <a-table-column title="Status" dataIndex="status" width="120">
           <template #default="{ record }">
-            <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+            <a-tag :color="statusColor(record.status)">{{ record.status === 'pending_approval' ? 'Pending' : record.status }}</a-tag>
             <a-button v-if="record.receipt_path" type="link" size="small" @click="viewReceipt(record)">
               <PaperClipOutlined />
             </a-button>
           </template>
         </a-table-column>
         <a-table-column title="Event" dataIndex="event_name" ellipsis width="120" />
-        <a-table-column title="Actions" width="220" fixed="right">
+        <a-table-column title="Actions" width="260" fixed="right">
           <template #default="{ record }">
             <a-space>
               <a-button size="small" @click="showEditModal(record)" v-if="canEdit(record)">Edit</a-button>
+              <a-button size="small" type="primary" v-if="canSubmit(record)" @click="handleTxnSubmit(record)">Submit</a-button>
               <a-button size="small" type="primary" v-if="canApprove && record.status === 'pending_approval'" @click="handleApprove(record)">Approve</a-button>
               <a-button size="small" danger v-if="canApprove && record.status === 'pending_approval'" @click="handleReject(record)">Reject</a-button>
               <a-popconfirm title="Delete this transaction?" ok-text="Delete" cancel-text="Cancel" @confirm="handleDelete(record)" v-if="canDelete">
@@ -175,7 +173,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useTransactionStore } from '../stores/transactions.js'
 import { useAuthStore } from '../stores/auth.js'
-import { categories as catApi, events as eventApi, uploads as uploadApi, members as memberApi } from '../api/index.js'
+import { categories as catApi, events as eventApi, uploads as uploadApi } from '../api/index.js'
 import { message, Modal } from 'ant-design-vue'
 
 const store = useTransactionStore()
@@ -191,7 +189,6 @@ const rejectReason = ref('')
 const fileList = ref([])
 const categoriesList = ref([])
 const eventsList = ref([])
-const membersList = ref([])
 const previewVisible = ref(false)
 const previewUrl = ref('')
 const previewType = ref('')
@@ -200,16 +197,20 @@ const filters = reactive({
   status: route.query.status || '',
   date_from: '',
   date_to: '',
-  designated_retiree: '',
 })
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
 const canApprove = computed(() => auth.canApprove)
 const canDelete = computed(() => auth.user?.role === 'admin')
 const canEdit = computed(() => (record) => {
-  if (!['admin', 'treasurer'].includes(auth.user?.role) && record.created_by !== auth.user?.id) return false
+  if (auth.user?.role === 'admin') return true
+  if (['treasurer'].includes(auth.user?.role) && ['draft', 'pending_approval'].includes(record.status)) return true
+  if (record.created_by === auth.user?.id && ['draft', 'pending_approval'].includes(record.status)) return true
   if (record.event_status && ['completed', 'cancelled'].includes(record.event_status)) return false
-  return true
+  return false
+})
+const canSubmit = computed(() => (record) => {
+  return record.status === 'draft' && (record.created_by === auth.user?.id || ['admin', 'treasurer'].includes(auth.user?.role))
 })
 
 const form = reactive({
@@ -240,9 +241,6 @@ const eventOptions = computed(() => {
   }
   return active
 })
-const memberOptions = computed(() =>
-  membersList.value.map((m) => ({ label: m.name, value: m.name }))
-)
 const pagination = computed(() => ({
   current: store.page,
   total: store.total,
@@ -265,12 +263,11 @@ async function fetchData() {
   if (filters.status) params.status = filters.status
   if (filters.date_from) params.date_from = filters.date_from
   if (filters.date_to) params.date_to = filters.date_to
-  if (filters.designated_retiree) params.designated_retiree = filters.designated_retiree
   await store.fetch(params)
 }
 
 function resetFilters() {
-  Object.assign(filters, { type: '', status: '', date_from: '', date_to: '', designated_retiree: '' })
+  Object.assign(filters, { type: '', status: '', date_from: '', date_to: '' })
   store.page = 1
   fetchData()
 }
@@ -364,6 +361,20 @@ async function handleSubmit() {
   finally { submitting.value = false }
 }
 
+function handleTxnSubmit(record) {
+  Modal.confirm({
+    title: 'Submit for Approval',
+    content: `Submit Rs. ${Number(record.amount).toFixed(2)} ${record.type} for approval?`,
+    onOk: async () => {
+      try {
+        await store.submit(record.id)
+        message.success('Submitted for approval')
+        await fetchData()
+      } catch (e) { message.error(e?.message || 'Failed') }
+    },
+  })
+}
+
 function handleApprove(record) {
   Modal.confirm({
     title: 'Approve Transaction',
@@ -419,15 +430,7 @@ function viewReceipt(record) {
   previewVisible.value = true
 }
 
-async function loadFilterMembers() {
-  try {
-    const res = await memberApi.list({ per_page: 1000 })
-    membersList.value = res.data?.items || []
-  } catch {}
-}
-
 onMounted(() => {
   fetchData()
-  loadFilterMembers()
 })
 </script>

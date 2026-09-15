@@ -126,20 +126,15 @@ class TransactionController {
             }
         }
 
-        // Organizer restricted to expense under threshold
+        // Role-based status: organizer creates as draft, others auto-approve
         $status = 'approved';
-        if ($input['type'] === 'expense') {
+        if ($role === 'organizer') {
+            $status = 'draft';
+        } elseif ($input['type'] === 'expense') {
             $amount = (float)$input['amount'];
             if ($amount > APPROVAL_THRESHOLD && !in_array($role, ['admin', 'treasurer'])) {
                 $status = 'pending_approval';
             }
-        }
-
-        // If role is organizer, only member/board can set to pending_approval; auto-approve small expenses
-        if ($role === 'organizer' && $input['type'] === 'expense' && (float)$input['amount'] <= APPROVAL_THRESHOLD) {
-            // Auto-approved for small amounts, set approved_by to self
-        } elseif ($role === 'organizer' && $input['type'] === 'expense') {
-            $status = 'pending_approval';
         }
 
         $id = UUID::v4();
@@ -216,6 +211,25 @@ class TransactionController {
         $params[] = $id;
         $pdo->prepare("UPDATE transactions SET " . implode(', ', $fields) . " WHERE id = ?")->execute($params);
 
+        // Recalculate budget actual_spent for both old and new event/category
+        $eventId = $input['event_id'] ?? $old['event_id'];
+        $categoryId = $input['category_id'] ?? $old['category_id'];
+        if ($eventId && $categoryId && ($input['type'] ?? $old['type']) === 'expense') {
+            $pdo->prepare("UPDATE budgets SET actual_spent = (
+                SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE event_id = ? AND category_id = ? AND type = 'expense' AND is_deleted = 0 AND status IN ('approved','pending_approval')
+            ) WHERE event_id = ? AND category_id = ?")
+            ->execute([$eventId, $categoryId, $eventId, $categoryId]);
+        }
+        // If event_id or category_id changed, recalculate old one too
+        if ($old['event_id'] && $old['category_id'] && $old['event_id'] !== $eventId && $old['type'] === 'expense') {
+            $pdo->prepare("UPDATE budgets SET actual_spent = (
+                SELECT COALESCE(SUM(amount), 0) FROM transactions
+                WHERE event_id = ? AND category_id = ? AND type = 'expense' AND is_deleted = 0 AND status IN ('approved','pending_approval')
+            ) WHERE event_id = ? AND category_id = ?")
+            ->execute([$old['event_id'], $old['category_id'], $old['event_id'], $old['category_id']]);
+        }
+
         // Re-post journal entry if approved
         $newStatus = $input['status'] ?? $old['status'];
         if ($newStatus === 'approved' || $old['status'] === 'approved') {
@@ -276,6 +290,26 @@ class TransactionController {
         $pdo->prepare("UPDATE transactions SET status = 'rejected', description = CONCAT(description, ' [REJECTED: ', ?, ']') WHERE id = ?")->execute([$reason, $id]);
         AuditController::log('transactions', $id, 'reject', $old, ['status' => 'rejected', 'reason' => $reason], $userId);
         Response::success(['id' => $id, 'status' => 'rejected'], 'Transaction rejected');
+    }
+
+    public static function submit(string $id): void {
+        AuthMiddleware::authenticate();
+        $userId = AuthMiddleware::getUserId();
+        $role = AuthMiddleware::getUserRole();
+        $pdo = getDbConnection();
+
+        $stmt = $pdo->prepare("SELECT * FROM transactions WHERE id = ?");
+        $stmt->execute([$id]);
+        $old = $stmt->fetch();
+        if (!$old) Response::error('Transaction not found', 404);
+        if ($old['status'] !== 'draft') Response::error('Transaction is not in draft status', 400);
+        if ($old['created_by'] !== $userId && !in_array($role, ['admin', 'treasurer'])) {
+            Response::error('You can only submit your own transactions', 403);
+        }
+
+        $pdo->prepare("UPDATE transactions SET status = 'pending_approval' WHERE id = ?")->execute([$id]);
+        AuditController::log('transactions', $id, 'update', $old, ['status' => 'pending_approval'], $userId);
+        Response::success(['id' => $id, 'status' => 'pending_approval'], 'Transaction submitted for approval');
     }
 
     public static function destroy(string $id): void {

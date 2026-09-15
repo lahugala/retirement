@@ -23,6 +23,7 @@ export function canAccess(menuKey, userRole) {
     giftstock: ['admin', 'treasurer', 'board'],
     reports: ['admin', 'treasurer', 'board'],
     audit: ['admin', 'treasurer', 'board'],
+    settings: ['admin'],
   }
   return (access[menuKey] || []).includes(userRole)
 }

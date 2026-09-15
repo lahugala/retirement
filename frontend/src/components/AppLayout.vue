@@ -49,6 +49,10 @@
           <SafetyOutlined />
           <span>Audit Log</span>
         </a-menu-item>
+        <a-menu-item key="settings" v-if="canAccess('settings')">
+          <SettingOutlined />
+          <span>Settings</span>
+        </a-menu-item>
       </a-menu>
     </a-layout-sider>
 
@@ -146,6 +150,7 @@ const pageTitle = computed(() => {
     accounts: 'Chart of Accounts',
     giftstock: 'Gift Stock',
     auditlog: 'Audit Trail',
+    settings: 'Settings',
   }
   return titles[route.name?.toLowerCase()] || 'Retirement Society'
 })
@@ -184,6 +189,7 @@ function navigate({ key }) {
     accounts: 'Accounts',
     giftstock: 'GiftStock',
     audit: 'AuditLog',
+    settings: 'Settings',
   }
   const name = routeMap[key]
   if (name) router.push({ name })

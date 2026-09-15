@@ -90,8 +90,9 @@ export const transactions = {
   create: (data) => api.post('/transactions', data),
   update: (id, data) => api.put(`/transactions/${id}`, data),
   delete: (id, data) => api.delete(`/transactions/${id}`, { data }),
-  approve: (id) => api.put(`/transactions/${id}/approve`),
-  reject: (id, data) => api.put(`/transactions/${id}/reject`, data),
+    approve: (id) => api.put(`/transactions/${id}/approve`),
+    reject: (id, data) => api.put(`/transactions/${id}/reject`, data),
+    submit: (id) => api.put(`/transactions/${id}/submit`),
 }
 
 // ---- Upload ----
@@ -149,4 +150,11 @@ export const reports = {
 // ---- Audit Logs ----
 export const auditLogs = {
   list: (params) => api.get('/audit-logs', { params }),
+}
+
+// ---- Settings ----
+export const settings = {
+  list: () => api.get('/settings'),
+  get: (key) => api.get(`/settings/${key}`),
+  update: (data) => api.put('/settings', data),
 }

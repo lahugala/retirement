@@ -105,6 +105,7 @@ $routes = [
     ['DELETE', '/api/transactions/{id}',         'TransactionController@destroy'],
     ['PUT',    '/api/transactions/{id}/approve', 'TransactionController@approve'],
     ['PUT',    '/api/transactions/{id}/reject',  'TransactionController@reject'],
+    ['PUT',    '/api/transactions/{id}/submit',  'TransactionController@submit'],
 
     // Accounts (Chart of Accounts)
     ['GET',    '/api/accounts',               'AccountController@index'],
@@ -145,7 +146,10 @@ $routes = [
     ['GET',    '/api/reports/retired-members',     'ReportController@retiredMembers'],
     ['GET',    '/api/reports/gift-history',        'ReportController@giftHistory'],
     ['GET',    '/api/reports/gift-not-issued',    'ReportController@giftNotIssued'],
-    ['GET',    '/api/audit-logs',            'AuditController@index'],
+    ['GET',    '/api/settings',            'SettingsController@index'],
+    ['GET',    '/api/settings/{key}',      'SettingsController@show'],
+    ['PUT',    '/api/settings',            'SettingsController@update'],
+    ['GET',    '/api/audit-logs',          'AuditController@index'],
 ];
 
 function matchRoute(string $method, string $uri, array $routes): ?array {

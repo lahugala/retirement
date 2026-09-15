@@ -33,6 +33,9 @@ export const useTransactionStore = defineStore('transactions', {
     async reject(id, reason) {
       return await api.reject(id, { reject_reason: reason })
     },
+    async submit(id) {
+      return await api.submit(id)
+    },
     async delete(id, reason) {
       return await api.delete(id, { delete_reason: reason })
     },
