@@ -407,6 +407,7 @@ class ReportController {
             $totalDebit += (float)$r['total_debit'];
             $totalCredit += (float)$r['total_credit'];
         }
+        unset($r);
 
         Response::success([
             'lines' => $rows,
@@ -453,6 +454,7 @@ class ReportController {
         foreach ($rows as &$r) {
             $r['total_value'] = round($r['quantity'] * $r['unit_price'], 2);
         }
+        unset($r);
 
         $totalReceived = 0;
         $totalIssued = 0;

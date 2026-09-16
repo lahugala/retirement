@@ -19,16 +19,24 @@
     <!-- Financial Summary Bar -->
     <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
       <a-col :span="6">
-        <a-statistic title="Current Net Balance" :value="netBalance" prefix="Rs." precision="2" :value-style="{ color: netBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (netBalance >= 0 ? '#3f8600' : '#cf1322') }">
+          <a-statistic title="Current Net Balance" :value="netBalance" prefix="Rs." precision="2" :value-style="{ color: netBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        </a-card>
       </a-col>
       <a-col :span="6">
-        <a-statistic :title="'Total Budgeted (' + selectedYear + ')'" :value="totalBudgeted" prefix="Rs." precision="2" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
+          <a-statistic :title="'Total Budgeted (' + selectedYear + ')'" :value="totalBudgeted" prefix="Rs." precision="2" />
+        </a-card>
       </a-col>
       <a-col :span="6">
-        <a-statistic :title="'Total Expense (' + selectedYear + ')'" :value="totalExpensed" prefix="Rs." precision="2" :value-style="{ color: totalExpensed > totalBudgeted ? '#cf1322' : 'inherit' }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
+          <a-statistic :title="'Total Expense (' + selectedYear + ')'" :value="totalExpensed" prefix="Rs." precision="2" :value-style="{ color: totalExpensed > totalBudgeted ? '#cf1322' : 'inherit' }" />
+        </a-card>
       </a-col>
       <a-col :span="6">
-        <a-statistic title="Available for Planning" :value="availableForPlanning" prefix="Rs." precision="2" :value-style="{ color: availableForPlanning >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (availableForPlanning >= 0 ? '#3f8600' : '#cf1322') }">
+          <a-statistic title="Available for Planning" :value="availableForPlanning" prefix="Rs." precision="2" :value-style="{ color: availableForPlanning >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        </a-card>
       </a-col>
     </a-row>
 
@@ -268,7 +276,7 @@ const totalExpensed = computed(() => {
     .reduce((sum, e) => sum + Number(e.total_expense || 0), 0)
 })
 const availableForPlanning = computed(() => {
-  return netBalance.value - totalBudgeted.value
+  return netBalance.value
 })
 
 function statusColor(s) {

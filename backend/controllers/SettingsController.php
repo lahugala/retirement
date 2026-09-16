@@ -47,15 +47,15 @@ class SettingsController {
             Response::error('Settings object required', 422);
         }
 
-        $stmt = $pdo->prepare("UPDATE settings SET setting_value = ?, updated_by = ? WHERE setting_key = ?");
         $updated = 0;
         foreach ($input['settings'] as $key => $value) {
-            $jsonValue = is_string($value) ? json_encode($value) : json_encode($value);
-            $stmt->execute([$jsonValue, $userId, $key]);
+            $jsonStr = json_encode($value);
+            $stmt = $pdo->prepare("UPDATE settings SET setting_value = ?, updated_by = ? WHERE setting_key = ?");
+            $stmt->execute([$jsonStr, $userId, $key]);
             $updated += $stmt->rowCount();
         }
 
-        AuditController::log('settings', null, 'update', null, $input['settings'], $userId);
+        AuditController::log('settings', 'all', 'update', null, $input['settings'], $userId);
         Response::success(['updated' => $updated], 'Settings updated');
     }
 }

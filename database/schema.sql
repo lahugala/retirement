@@ -227,13 +227,38 @@ CREATE INDEX idx_gsm_gift ON gift_stock_movements(gift_id);
 CREATE INDEX idx_gsm_type ON gift_stock_movements(movement_type);
 
 -- -----------------------------------------------------------
--- 12. SEED DATA
+-- 12. SETTINGS (key-value application config)
+-- -----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS settings (
+    id CHAR(36) PRIMARY KEY,
+    setting_key VARCHAR(100) NOT NULL UNIQUE,
+    setting_value TEXT DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    updated_by CHAR(36) DEFAULT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+-- -----------------------------------------------------------
+-- 13. SEED DATA
 -- -----------------------------------------------------------
 
 -- Default admin (password: password)
 INSERT INTO users (id, name, email, password, role) VALUES
 ('a0000000-0000-0000-0000-000000000001', 'System Admin', 'admin@society.org',
  '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+
+-- Default settings
+INSERT INTO settings (id, setting_key, setting_value, description) VALUES
+('0c41b1b3-6b61-4950-8929-59a77341e127', 'txn_create_roles', '["admin","treasurer","organizer"]', 'Roles that can create transactions'),
+('3271ab78-c28f-4e1a-90d6-60b560c4b927', 'txn_treasurer_default_status', '"approved"', 'Default status when treasurer creates transaction'),
+('363d106f-2dbf-411a-96d9-d83f522fa294', 'txn_organizer_default_status', '"draft"', 'Default status when organizer creates transaction'),
+('52dde4f8-cd35-408b-a8aa-cdd13b91b287', 'txn_delete_roles', '["admin"]', 'Roles that can delete transactions'),
+('7aba2787-2017-4495-b211-a1ae377c5887', 'txn_edit_roles', '["admin","treasurer"]', 'Roles that can edit any transaction'),
+('85fe16d5-ad56-4f2f-8766-93c1f28c19a3', 'txn_submit_roles', '["admin","treasurer"]', 'Roles that can submit for approval'),
+('87bbce47-298b-43ca-9ee6-bd2301983bbe', 'txn_approve_roles', '["admin","treasurer"]', 'Roles that can approve/reject transactions'),
+('8f096469-2d76-4197-aa22-bff8b4320b47', 'txn_require_approval', 'true', 'Require approval for organizer expenses above threshold'),
+('bd9b8b75-5040-4d60-8d46-230d2d1018f2', 'txn_auto_approve_threshold', '50000', 'Auto-approve expenses below this amount (Rs.)'),
+('fcb30fa4-33c3-4f5f-a6ee-8a1347bfc68e', 'txn_admin_default_status', '"approved"', 'Default status when admin creates transaction');
 
 -- Chart of Accounts
 INSERT INTO accounts (id, code, name, type, description) VALUES

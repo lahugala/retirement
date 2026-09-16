@@ -204,9 +204,11 @@ const canApprove = computed(() => auth.canApprove)
 const canDelete = computed(() => auth.user?.role === 'admin')
 const canEdit = computed(() => (record) => {
   if (auth.user?.role === 'admin') return true
-  if (['treasurer'].includes(auth.user?.role) && ['draft', 'pending_approval'].includes(record.status)) return true
+  if (auth.user?.role === 'treasurer') {
+    if (record.event_status && ['completed', 'cancelled'].includes(record.event_status)) return false
+    return true
+  }
   if (record.created_by === auth.user?.id && ['draft', 'pending_approval'].includes(record.status)) return true
-  if (record.event_status && ['completed', 'cancelled'].includes(record.event_status)) return false
   return false
 })
 const canSubmit = computed(() => (record) => {

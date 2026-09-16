@@ -44,3 +44,6 @@ logs/
 *.sw?
 
 *.bak
+
+# Member images (downloaded from external API)
+backend/uploads/member-images/

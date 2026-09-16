@@ -52,6 +52,7 @@ export const members = {
   delete: (id) => api.delete(`/members/${id}`),
   syncRetirement: (id) => api.post(`/members/${id}/sync-retirement`),
   syncAll: () => api.post('/members/sync-all'),
+  downloadImages: () => api.post('/members/download-images'),
 }
 
 // ---- Categories ----

@@ -82,6 +82,32 @@
         </a-col>
       </a-row>
 
+      <!-- Member Sync -->
+      <a-row :gutter="[24, 24]" style="margin-top: 24px">
+        <a-col :xs="24" :lg="12">
+          <a-card title="Member Data Sync" :bordered="false">
+            <p style="color: #888; margin-bottom: 16px">Sync member data and photos from the external employee system.</p>
+            <a-space direction="vertical" style="width: 100%">
+              <a-button type="primary" @click="syncMembers" :loading="syncing" block>
+                <SyncOutlined /> Sync Member Data
+              </a-button>
+              <a-button @click="downloadMemberImages" :loading="downloadingImages" block>
+                <DownloadOutlined /> Download Member Images
+              </a-button>
+            </a-space>
+            <a-divider />
+            <a-descriptions :column="1" size="small" v-if="syncResult || imageResult">
+              <a-descriptions-item v-if="syncResult" label="Last Sync Result">
+                {{ syncResult.synced }} updated, {{ syncResult.failed }} failed, {{ syncResult.no_data }} unchanged
+              </a-descriptions-item>
+              <a-descriptions-item v-if="imageResult" label="Last Image Download">
+                {{ imageResult.downloaded }} downloaded, {{ imageResult.skipped }} skipped, {{ imageResult.failed }} failed
+              </a-descriptions-item>
+            </a-descriptions>
+          </a-card>
+        </a-col>
+      </a-row>
+
       <div style="margin-top: 24px; text-align: right">
         <a-button type="primary" @click="saveSettings" :loading="saving">
           <SaveOutlined /> Save Settings
@@ -93,7 +119,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { settings as settingsApi } from '../api/index.js'
+import { settings as settingsApi, members as membersApi } from '../api/index.js'
 import { message } from 'ant-design-vue'
 
 const loading = ref(true)
@@ -145,10 +171,15 @@ async function fetchSettings() {
   loading.value = true
   try {
     const res = await settingsApi.list()
-    const data = res.data?.data || {}
+    const data = res?.data || {}
     for (const [key, val] of Object.entries(data)) {
       if (key in form) {
-        form[key] = val.value
+        const v = val?.value !== undefined ? val.value : val
+        if (Array.isArray(v)) {
+          form[key] = [...v]
+        } else {
+          form[key] = v
+        }
       }
     }
   } catch (e) { message.error('Failed to load settings') }
@@ -164,8 +195,36 @@ async function saveSettings() {
     }
     await settingsApi.update({ settings: payload })
     message.success('Settings saved')
+    await fetchSettings()
   } catch (e) { message.error(e?.message || 'Failed to save') }
   finally { saving.value = false }
+}
+
+const syncing = ref(false)
+const syncResult = ref(null)
+const downloadingImages = ref(false)
+const imageResult = ref(null)
+
+async function syncMembers() {
+  syncing.value = true
+  syncResult.value = null
+  try {
+    const res = await membersApi.syncAll()
+    syncResult.value = res.data
+    message.success(`Sync complete: ${res.data.synced} updated, ${res.data.failed} failed`)
+  } catch (e) { message.error(e?.message || 'Sync failed') }
+  finally { syncing.value = false }
+}
+
+async function downloadMemberImages() {
+  downloadingImages.value = true
+  imageResult.value = null
+  try {
+    const res = await membersApi.downloadImages()
+    imageResult.value = res.data
+    message.success(`Images: ${res.data.downloaded} downloaded, ${res.data.skipped} skipped`)
+  } catch (e) { message.error(e?.message || 'Download failed') }
+  finally { downloadingImages.value = false }
 }
 
 onMounted(fetchSettings)

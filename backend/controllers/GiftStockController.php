@@ -262,6 +262,7 @@ class GiftStockController {
         foreach ($rows as &$r) {
             $r['total_value'] = round($r['quantity'] * $r['unit_price'], 2);
         }
+        unset($r);
         Response::paginated($rows, (int)$total, $page, $perPage);
     }
 

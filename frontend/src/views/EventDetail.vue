@@ -10,6 +10,12 @@
       </template>
     </a-page-header>
 
+    <a-alert v-if="event?.budget_allocated > 0 && eventNetBalance > 0 && event?.budget_allocated > eventNetBalance" type="warning" show-icon style="margin-bottom: 16px">
+      <template #message>Budget Exceeds Available Balance</template>
+      This event's budget (Rs. {{ Number(event?.budget_allocated || 0).toFixed(2) }}) exceeds the current net balance (Rs. {{ Number(eventNetBalance).toFixed(2) }}).
+      Remaining after budget: Rs. {{ (eventNetBalance - Number(event?.budget_allocated || 0)).toFixed(2) }}
+    </a-alert>
+
     <a-row :gutter="[16, 16]">
       <!-- Event Info -->
       <a-col :xs="24" :lg="8">
@@ -68,12 +74,19 @@
                 <a-button type="link" size="small" @click="cancelEditBudget">
                   <CloseOutlined />
                 </a-button>
+                <div style="margin-top: 4px; font-size: 12px; color: #888">
+                  Net Balance: Rs. {{ Number(eventNetBalance).toFixed(2) }} |
+                  Remaining: <span :style="{ color: (eventNetBalance - (budgetFormValue || 0)) >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }">Rs. {{ (eventNetBalance - Number(budgetFormValue || 0)).toFixed(2) }}</span>
+                </div>
               </template>
               <template v-else>
                 Rs. {{ Number(event?.budget_allocated || 0).toFixed(2) }}
                 <a-button type="link" size="small" @click="startEditBudget" v-if="canEdit">
                   <EditOutlined />
                 </a-button>
+                <div v-if="eventNetBalance > 0" style="font-size: 12px; color: #888; margin-top: 2px">
+                  Available: Rs. {{ Number(eventNetBalance - Number(event?.budget_allocated || 0)).toFixed(2) }}
+                </div>
               </template>
             </a-descriptions-item>
             <a-descriptions-item label="Notes">
@@ -116,12 +129,13 @@
             <a-table-column title="Category" dataIndex="category_name" />
             <a-table-column title="Planned" dataIndex="planned_amount" align="right" width="180">
               <template #default="{ record }">
-                <div v-if="editingBudgetLine === record.id" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px">
+                <div v-if="editingBudgetLine === record.id && canEdit" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px">
                   <a-input-number v-model:value="budgetLineFormValue" :min="0" :step="10" size="small" style="width: 120px" @press-enter="saveBudgetLine" />
                   <a-button type="link" size="small" @click="saveBudgetLine" :loading="savingBudgetLine"><CheckOutlined /></a-button>
                   <a-button type="link" size="small" @click="editingBudgetLine = null"><CloseOutlined /></a-button>
                 </div>
-                <a v-else style="cursor: pointer" @click="startEditBudgetLine(record)">Rs. {{ Number(record.planned_amount).toFixed(2) }}</a>
+                <a v-else-if="canEdit" style="cursor: pointer" @click="startEditBudgetLine(record)">Rs. {{ Number(record.planned_amount).toFixed(2) }}</a>
+                <span v-else>Rs. {{ Number(record.planned_amount).toFixed(2) }}</span>
               </template>
             </a-table-column>
             <a-table-column title="Actual" dataIndex="actual_spent" align="right">
@@ -414,6 +428,8 @@ function refreshRetireeDetails() {
   retireeDetails.value = names.map((n) => map[n.toLowerCase()] || { name: n })
 }
 
+const eventNetBalance = ref(0)
+
 const activateModalVisible = ref(false)
 const activating = ref(false)
 const activateNetBalance = ref(0)
@@ -528,16 +544,18 @@ function txnStatusColor(s) {
 async function fetchEvent() {
   loading.value = true
   try {
-    const [evtRes, memRes, giRes, giftRes] = await Promise.all([
+    const [evtRes, memRes, giRes, giftRes, dashRes] = await Promise.all([
       store.get(route.params.id),
       membersApi.list({ per_page: 1000 }),
       store.giftIssuance ? store.giftIssuance(route.params.id) : Promise.resolve(null),
       giftStockApi.list(),
+      reportsApi.dashboard({ year: new Date().getFullYear() }),
     ])
     event.value = evtRes
     membersList.value = memRes.data?.items || []
     giftIssuanceRetirees.value = giRes?.data?.retirees || []
     giftStockItems.value = giftRes.data || []
+    eventNetBalance.value = dashRes.data?.net_balance || 0
     refreshRetireeDetails()
   } catch (e) { message.error('Failed to load event') }
   finally { loading.value = false }

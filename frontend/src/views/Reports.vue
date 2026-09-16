@@ -5,13 +5,19 @@
     <!-- Global Net Balance Bar -->
     <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
       <a-col :span="8">
-        <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (globalNetBalance >= 0 ? '#3f8600' : '#cf1322') }">
+          <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        </a-card>
       </a-col>
       <a-col :span="8">
-        <a-statistic title="Total Budgeted (Active Events)" :value="globalBudgeted" prefix="Rs." precision="2" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
+          <a-statistic title="Total Budgeted (Active Events)" :value="globalBudgeted" prefix="Rs." precision="2" />
+        </a-card>
       </a-col>
       <a-col :span="8">
-        <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (globalProjected >= 0 ? '#3f8600' : '#cf1322') }">
+          <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        </a-card>
       </a-col>
     </a-row>
 
@@ -211,6 +217,7 @@
               <template #default="{ record }">{{ dayjs(record.created_at).format('YYYY-MM-DD') }}</template>
             </a-table-column>
             <a-table-column title="Gift" dataIndex="gift_name" ellipsis />
+            <a-table-column title="Unit" dataIndex="unit" width="80" />
             <a-table-column title="Type" dataIndex="movement_type" width="100">
               <template #default="{ record }">
                 <a-tag :color="record.movement_type === 'received' ? 'green' : 'red'">{{ record.movement_type }}</a-tag>
@@ -408,6 +415,78 @@
           <div v-else style="padding: 24px; text-align: center; color: #999">Select an event to view P&L</div>
         </a-card>
       </a-tab-pane>
+
+      <!-- Budget Planning Tab -->
+      <a-tab-pane key="planning" tab="Budget Planning">
+        <a-card>
+          <template #extra>
+            <a-space>
+              <a-select v-model:value="planningYear" style="width: 120px" @change="fetchPlanningData">
+                <a-select-option v-for="y in planningYears" :key="y" :value="y">{{ y }}</a-select-option>
+              </a-select>
+              <a-button type="primary" @click="fetchPlanningData">Refresh</a-button>
+            </a-space>
+          </template>
+
+          <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
+            <a-col :span="6">
+              <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (planningNetBalance >= 0 ? '#3f8600' : '#cf1322') }">
+                <a-statistic title="Net Balance" :value="planningNetBalance" prefix="Rs." precision="2" :value-style="{ color: planningNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
+                <a-statistic title="Total Budgeted" :value="planningTotalBudgeted" prefix="Rs." precision="2" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
+                <a-statistic title="Total Spent" :value="planningTotalSpent" prefix="Rs." precision="2" :value-style="{ color: planningTotalSpent > planningTotalBudgeted ? '#cf1322' : 'inherit' }" />
+              </a-card>
+            </a-col>
+            <a-col :span="6">
+              <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (planningAvailable >= 0 ? '#3f8600' : '#cf1322') }">
+                <a-statistic title="Available" :value="planningAvailable" prefix="Rs." precision="2" :value-style="{ color: planningAvailable >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+              </a-card>
+            </a-col>
+          </a-row>
+
+          <a-table :dataSource="planningEvents" rowKey="id" size="small" :pagination="false">
+            <a-table-column title="Event" dataIndex="name" ellipsis />
+            <a-table-column title="Quarter" dataIndex="quarter" width="100" align="center" />
+            <a-table-column title="Status" dataIndex="status" width="110">
+              <template #default="{ record }">
+                <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="Budget" dataIndex="budget_allocated" align="right" width="130">
+              <template #default="{ record }">Rs. {{ Number(record.budget_allocated || 0).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Spent" dataIndex="total_expense" align="right" width="130">
+              <template #default="{ record }">Rs. {{ Number(record.total_expense || 0).toFixed(2) }}</template>
+            </a-table-column>
+            <a-table-column title="Remaining" width="130" align="right">
+              <template #default="{ record }">
+                <span :style="{ color: (record.budget_allocated - (record.total_expense || 0)) >= 0 ? '#3f8600' : '#cf1322' }">
+                  Rs. {{ Number(record.budget_allocated - (record.total_expense || 0)).toFixed(2) }}
+                </span>
+              </template>
+            </a-table-column>
+            <a-table-column title="Utilization" width="120" align="center">
+              <template #default="{ record }">
+                <a-progress :percent="record.budget_allocated > 0 ? Math.min(Math.round(((record.total_expense || 0) / record.budget_allocated) * 100), 100) : 0" size="small" :status="(record.total_expense || 0) > record.budget_allocated ? 'exception' : 'active'" />
+              </template>
+            </a-table-column>
+          </a-table>
+
+          <a-divider />
+          <a-row :gutter="16">
+            <a-col :span="8"><strong>Net Balance:</strong> Rs. {{ Number(planningNetBalance).toFixed(2) }}</a-col>
+            <a-col :span="8"><strong>Total Budgeted:</strong> Rs. {{ Number(planningTotalBudgeted).toFixed(2) }}</a-col>
+            <a-col :span="8"><strong>Projected After Budget:</strong> <span :style="{ color: planningAvailable >= 0 ? '#3f8600' : '#cf1322' }">Rs. {{ Number(planningAvailable).toFixed(2) }}</span></a-col>
+          </a-row>
+        </a-card>
+      </a-tab-pane>
     </a-tabs>
   </div>
 </template>
@@ -458,6 +537,20 @@ const gniEventOptions = ref([])
 const gniEventName = ref('')
 const gniNotIssuedRetirees = ref([])
 const gniNotIssuedCount = ref(0)
+
+const planningYear = ref(new Date().getFullYear())
+const planningYears = computed(() => {
+  const years = new Set()
+  eventOptions.value.forEach((e) => { if (e.year) years.add(e.year) })
+  const cy = new Date().getFullYear()
+  for (let y = cy - 5; y <= cy + 3; y++) years.add(y)
+  return [...years].sort((a, b) => b - a)
+})
+const planningEvents = ref([])
+const planningNetBalance = ref(0)
+const planningTotalBudgeted = computed(() => planningEvents.value.reduce((s, e) => s + Number(e.budget_allocated || 0), 0))
+const planningTotalSpent = computed(() => planningEvents.value.reduce((s, e) => s + Number(e.total_expense || 0), 0))
+const planningAvailable = computed(() => planningNetBalance.value - planningTotalBudgeted.value)
 
 async function fetchDashboard() {
   try {
@@ -537,8 +630,18 @@ async function fetchGiftHistory() {
     if (ghDateTo.value) params.date_to = ghDateTo.value
     if (ghGiftId.value) params.gift_id = ghGiftId.value
     const res = await reportsApi.giftHistory(params)
-    giftMovements.value = res.data?.movements || []
-    Object.assign(giftSummary, res.data?.summary || {})
+    const movements = res.data?.movements || []
+    const seen = new Set()
+    const unique = movements.filter((r) => {
+      if (seen.has(r.id)) return false
+      seen.add(r.id)
+      return true
+    })
+    giftMovements.value = unique
+    giftSummary.total_received = unique.filter(r => r.movement_type === 'received').reduce((s, r) => s + Number(r.quantity), 0)
+    giftSummary.total_issued = unique.filter(r => r.movement_type === 'issued').reduce((s, r) => s + Number(r.quantity), 0)
+    giftSummary.value_received = unique.filter(r => r.movement_type === 'received').reduce((s, r) => s + Number(r.total_value), 0)
+    giftSummary.value_issued = unique.filter(r => r.movement_type === 'issued').reduce((s, r) => s + Number(r.total_value), 0)
   } catch { message.error('Failed to load gift history') }
 }
 
@@ -552,6 +655,21 @@ async function fetchGiftNotIssued() {
     gniNotIssuedRetirees.value = retirees.filter((r) => !r.gift_issued)
     gniNotIssuedCount.value = res.data?.not_issued_count || 0
   } catch { message.error('Failed to load gift not issued report') }
+}
+
+async function fetchPlanningData() {
+  try {
+    const [dashRes, evtRes] = await Promise.all([
+      reportsApi.dashboard({ year: planningYear.value }),
+      eventApi.list({ year: planningYear.value, per_page: 100 }),
+    ])
+    planningNetBalance.value = dashRes.data?.net_balance || 0
+    planningEvents.value = evtRes.data?.items || []
+  } catch { message.error('Failed to load planning data') }
+}
+
+function statusColor(s) {
+  return { planned: 'blue', active: 'green', completed: 'default', cancelled: 'red' }[s] || 'default'
 }
 
 async function fetchGlobalBalances() {
@@ -600,5 +718,6 @@ onMounted(() => {
   fetchGifts()
   fetchGiftHistory()
   fetchGiftNotIssued()
+  fetchPlanningData()
 })
 </script>

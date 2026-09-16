@@ -271,4 +271,76 @@ class MembersController {
             'errors' => $errors,
         ], "Bulk sync complete: {$synced} updated, {$failed} failed");
     }
+
+    // -----------------------------------------------------------
+    // Download member photos from external API
+    // -----------------------------------------------------------
+    public static function downloadImages(): void {
+        AuthMiddleware::requireRole('admin');
+        $pdo = getDbConnection();
+
+        $uploadDir = __DIR__ . '/../uploads/member-images';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $stmt = $pdo->query("SELECT id, name, computer_no FROM members WHERE computer_no IS NOT NULL AND computer_no <> ''");
+        $members = $stmt->fetchAll();
+
+        if (empty($members)) Response::error('No members with a computer number found', 404);
+
+        $downloaded = 0;
+        $skipped = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($members as $member) {
+            $computerNo = $member['computer_no'];
+            $filePath = $uploadDir . '/' . $computerNo . '.jpg';
+
+            // Skip if already downloaded
+            if (file_exists($filePath) && filesize($filePath) > 0) {
+                $skipped++;
+                continue;
+            }
+
+            $rec = self::fetchEmployee($computerNo);
+            if (!$rec || empty($rec['AA_PHOTO'])) {
+                $failed++;
+                if (count($errors) < 20) $errors[] = ['name' => $member['name'], 'computer_no' => $computerNo, 'error' => 'No photo URL'];
+                continue;
+            }
+
+            $photoUrl = $rec['AA_PHOTO'];
+            $ch = curl_init($photoUrl);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT => 10,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ]);
+            $imageData = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            if ($imageData === false || $httpCode !== 200) {
+                $failed++;
+                if (count($errors) < 20) $errors[] = ['name' => $member['name'], 'computer_no' => $computerNo, 'error' => 'Failed to download image'];
+                continue;
+            }
+
+            if (file_put_contents($filePath, $imageData) !== false) {
+                $downloaded++;
+            } else {
+                $failed++;
+                if (count($errors) < 20) $errors[] = ['name' => $member['name'], 'computer_no' => $computerNo, 'error' => 'Failed to save image'];
+            }
+        }
+
+        Response::success([
+            'total' => count($members),
+            'downloaded' => $downloaded,
+            'skipped' => $skipped,
+            'failed' => $failed,
+            'errors' => $errors,
+        ], "Image download complete: {$downloaded} downloaded, {$skipped} skipped, {$failed} failed");
+    }
 }

@@ -24,7 +24,7 @@ require_once __DIR__ . '/helpers/Response.php';
 // Serve uploaded files directly (must run before URI parsing)
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (preg_match('#/uploads/(.+)$#', $requestUri, $m)) {
-    $file = __DIR__ . '/uploads/' . basename($m[1]);
+    $file = __DIR__ . '/uploads/' . $m[1];
     if (file_exists($file)) {
         $ext = pathinfo($file, PATHINFO_EXTENSION);
         $mimeTypes = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'pdf' => 'application/pdf'];
@@ -71,6 +71,7 @@ $routes = [
     ['DELETE', '/api/members/{id}',       'MembersController@destroy'],
     ['POST',   '/api/members/{id}/sync-retirement', 'MembersController@syncRetirement'],
     ['POST',   '/api/members/sync-all',   'MembersController@syncAll'],
+    ['POST',   '/api/members/download-images', 'MembersController@downloadImages'],
 
     // Categories
     ['GET',    '/api/categories',           'CategoryController@index'],
