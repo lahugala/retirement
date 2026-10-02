@@ -21,6 +21,28 @@
       <a-col :xs="24" :lg="8">
         <a-card title="Event Details" :loading="loading">
           <a-descriptions :column="1" size="small">
+            <a-descriptions-item label="Name">
+              <template v-if="editingName && canEdit">
+                <a-input
+                  v-model:value="nameFormValue"
+                  size="small"
+                  style="min-width: 200px"
+                  autofocus
+                />
+                <a-button type="link" size="small" @click="saveName" :loading="savingName">
+                  <CheckOutlined />
+                </a-button>
+                <a-button type="link" size="small" @click="cancelEditName">
+                  <CloseOutlined />
+                </a-button>
+              </template>
+              <template v-else>
+                {{ event?.name || '-' }}
+                <a-button type="link" size="small" @click="startEditName" v-if="canEdit">
+                  <EditOutlined />
+                </a-button>
+              </template>
+            </a-descriptions-item>
             <a-descriptions-item label="Quarter">
               <strong v-if="event?.quarter">
                 P{{ event.quarter }} · {{ ['','Jan-Apr','May-Aug','Sep-Dec'][event.quarter] }} {{ event.year }}
@@ -436,6 +458,32 @@ const activateNetBalance = ref(0)
 const completeModalVisible = ref(false)
 const completing = ref(false)
 const completeNotes = ref('')
+
+// Name editing
+const editingName = ref(false)
+const nameFormValue = ref('')
+const savingName = ref(false)
+
+function startEditName() {
+  nameFormValue.value = event.value?.name || ''
+  editingName.value = true
+}
+
+function cancelEditName() {
+  editingName.value = false
+}
+
+async function saveName() {
+  if (!nameFormValue.value.trim()) { message.error('Name cannot be empty'); return }
+  savingName.value = true
+  try {
+    await store.update(route.params.id, { name: nameFormValue.value.trim() })
+    message.success('Event name updated')
+    editingName.value = false
+    await fetchEvent()
+  } catch (e) { message.error(e?.message || 'Failed') }
+  finally { savingName.value = false }
+}
 
 // Date editing
 const editingDate = ref(false)

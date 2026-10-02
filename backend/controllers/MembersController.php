@@ -69,8 +69,8 @@ class MembersController {
         $pdo = getDbConnection();
         $id = UUID::v4();
 
-        $stmt = $pdo->prepare("INSERT INTO members (id, name, nic, service_no, designation, computer_no, retirement_date, status)
-                               VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $pdo->prepare("INSERT INTO members (id, name, nic, service_no, designation, computer_no, retirement_date, status, phone, address)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
             $id,
             $input['name'],
@@ -80,6 +80,8 @@ class MembersController {
             $input['computer_no'] ?? null,
             $input['retirement_date'] ?? null,
             $input['status'] ?? 'active',
+            $input['phone'] ?? null,
+            $input['address'] ?? null,
         ]);
 
         AuditController::log('members', $id, 'create', null, $input, AuthMiddleware::getUserId());
@@ -101,7 +103,7 @@ class MembersController {
 
         $fields = [];
         $params = [];
-        foreach (['name', 'nic', 'service_no', 'designation', 'computer_no', 'status'] as $f) {
+        foreach (['name', 'nic', 'service_no', 'designation', 'computer_no', 'status', 'phone', 'address'] as $f) {
             if (isset($input[$f])) { $fields[] = "$f = ?"; $params[] = $input[$f]; }
         }
         if (isset($input['retirement_date'])) { $fields[] = 'retirement_date = ?'; $params[] = $input['retirement_date'] ?: null; }

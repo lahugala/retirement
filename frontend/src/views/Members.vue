@@ -38,6 +38,10 @@
         <a-table-column title="Designation" dataIndex="designation" ellipsis />
         <a-table-column title="Computer No" dataIndex="computer_no" />
         <a-table-column title="Retirement Date" dataIndex="retirement_date" />
+        <a-table-column title="Phone" dataIndex="phone" width="130">
+          <template #default="{ record }">{{ record.phone || '-' }}</template>
+        </a-table-column>
+        <a-table-column title="Address" dataIndex="address" ellipsis />
         <a-table-column title="Status" dataIndex="status">
           <template #default="{ record }">
             <a-tag :color="{ active: 'green', retired: 'orange', deceased: 'red', resigned: 'purple', inactive: 'default', dismissed: 'red' }[record.status] || 'default'">{{ record.status }}</a-tag>
@@ -97,11 +101,17 @@
             <a-select-option value="dismissed">Dismissed</a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="Phone">
+          <a-input v-model:value="form.phone" placeholder="Contact number" />
+        </a-form-item>
+        <a-form-item label="Address">
+          <a-textarea v-model:value="form.address" :rows="2" placeholder="Home address" />
+        </a-form-item>
       </a-form>
     </a-modal>
 
     <!-- Member Profile Card -->
-    <a-modal v-model:visible="profileVisible" :title="null" :footer="null" width="420px" destroyOnClose :body-style="{ padding: 0 }" :mask-closable="true">
+    <a-modal v-model:visible="profileVisible" :title="null" :footer="null" width="640px" destroyOnClose :body-style="{ padding: 0 }" :mask-closable="true">
       <div v-if="profileMember">
         <!-- Header with avatar -->
         <div style="background: linear-gradient(135deg, #1890ff 0%, #096dd9 50%, #0050b3 100%); padding: 40px 24px 28px; position: relative; text-align: center; overflow: hidden">
@@ -128,7 +138,7 @@
 
         <!-- Details -->
         <div style="padding: 20px 24px">
-          <div style="display: grid; gap: 12px">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
             <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
               <div style="width: 36px; height: 36px; border-radius: 8px; background: #e6f7ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
                 <IdcardOutlined style="color: #1890ff; font-size: 16px" />
@@ -166,6 +176,26 @@
               <div style="min-width: 0">
                 <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Retirement Date</div>
                 <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.retirement_date || '-' }}</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
+              <div style="width: 36px; height: 36px; border-radius: 8px; background: #e6fffb; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+                <PhoneOutlined style="color: #13c2c2; font-size: 16px" />
+              </div>
+              <div style="min-width: 0">
+                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Phone</div>
+                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.phone || '-' }}</div>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
+              <div style="width: 36px; height: 36px; border-radius: 8px; background: #fff1f0; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+                <EnvironmentOutlined style="color: #f5222d; font-size: 16px" />
+              </div>
+              <div style="min-width: 0">
+                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Address</div>
+                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.address || '-' }}</div>
               </div>
             </div>
           </div>
@@ -219,7 +249,7 @@ function showFullImage() {
 
 const form = reactive({
   name: '', nic: '', service_no: '', designation: '', computer_no: '',
-  retirement_date: null, status: 'active',
+  retirement_date: null, status: 'active', phone: '', address: '',
 })
 
 const canEdit = computed(() => ['admin', 'treasurer'].includes(auth.user?.role))
@@ -251,7 +281,7 @@ function showProfile(record) {
 
 function showModal() {
   editingId.value = null
-  Object.assign(form, { name: '', nic: '', service_no: '', designation: '', computer_no: '', retirement_date: null, status: 'active' })
+  Object.assign(form, { name: '', nic: '', service_no: '', designation: '', computer_no: '', retirement_date: null, status: 'active', phone: '', address: '' })
   modalVisible.value = true
 }
 
@@ -265,6 +295,8 @@ function showEditModal(record) {
     computer_no: record.computer_no || '',
     retirement_date: record.retirement_date ? dayjs(record.retirement_date) : null,
     status: record.status,
+    phone: record.phone || '',
+    address: record.address || '',
   })
   modalVisible.value = true
 }
@@ -344,6 +376,8 @@ async function handleSubmit() {
       computer_no: form.computer_no || null,
       retirement_date: form.retirement_date ? dayjs(form.retirement_date).format('YYYY-MM-DD') : null,
       status: form.status,
+      phone: form.phone || null,
+      address: form.address || null,
     }
     if (editingId.value) {
       await api.update(editingId.value, payload)

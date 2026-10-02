@@ -45,13 +45,16 @@
     <a-row :gutter="[16, 16]">
       <a-col :xs="24" :sm="12" :lg="8" v-for="q in defaultPeriods" :key="q.num">
         <a-card
-          :title="q.label"
           :loading="loading"
           hoverable
           :body-style="{ padding: '16px' }"
           @click="q.event ? $router.push(`/events/${q.event.id}`) : null"
           :style="q.event ? 'cursor: pointer' : ''"
         >
+          <template #title>
+            <span v-if="q.event && q.event.name">{{ q.event.name }}</span>
+            <span v-else>{{ q.label }}</span>
+          </template>
           <template #extra>
             <a-tag :color="statusColor(q.event?.status)" v-if="q.event">{{ q.event.status }}</a-tag>
             <a-tag v-else color="default">Not created</a-tag>
@@ -88,6 +91,11 @@
 
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end">
               <a-button size="small" @click.stop="$router.push(`/events/${q.event.id}`)">Manage</a-button>
+              <a-tooltip title="Rename" v-if="canRename">
+                <a-button size="small" @click.stop="showRenameModal(q.event)">
+                  <EditOutlined />
+                </a-button>
+              </a-tooltip>
               <a-button size="small" @click.stop="addRetiree(q.event)" v-if="canCreate">+ Retiree</a-button>
             </div>
           </div>
@@ -136,6 +144,11 @@
             </a-descriptions>
             <div style="margin-top: 12px; display: flex; gap: 8px; justify-content: flex-end">
               <a-button size="small" @click.stop="$router.push(`/events/${evt.id}`)">Manage</a-button>
+              <a-tooltip title="Rename" v-if="canRename">
+                <a-button size="small" @click.stop="showRenameModal(evt)">
+                  <EditOutlined />
+                </a-button>
+              </a-tooltip>
             </div>
           </a-card>
         </a-col>
@@ -189,6 +202,19 @@
       <a-input v-model:value="namePattern" placeholder="Name pattern" size="small" style="margin-bottom: 4px" />
       <p style="color: #999; font-size: 11px">Use {quarter}, {label}, {year} &middot; Existing periods skipped.</p>
     </a-modal>
+
+    <!-- Rename Event Modal -->
+    <a-modal v-model:visible="renameVisible" title="Rename Event" :footer="null" :confirm-loading="renaming" destroyOnClose centered>
+      <a-form layout="vertical" @submit.prevent="confirmRename">
+        <a-form-item label="Event Name" required>
+          <a-input v-model:value="renameValue" placeholder="Enter event name" autofocus @pressEnter="confirmRename" />
+        </a-form-item>
+        <a-space style="display: flex; justify-content: flex-end">
+          <a-button @click="renameVisible = false">Cancel</a-button>
+          <a-button type="primary" :loading="renaming" @click="confirmRename">Rename</a-button>
+        </a-space>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -241,6 +267,31 @@ const availableYears = computed(() => {
 })
 
 const canCreate = computed(() => ['admin', 'treasurer', 'organizer'].includes(auth.user?.role))
+const canRename = computed(() => ['admin', 'treasurer'].includes(auth.user?.role))
+
+// Rename event
+const renameVisible = ref(false)
+const renameId = ref(null)
+const renameValue = ref('')
+const renaming = ref(false)
+
+function showRenameModal(evt) {
+  renameId.value = evt.id
+  renameValue.value = evt.name || ''
+  renameVisible.value = true
+}
+
+async function confirmRename() {
+  if (!renameValue.value.trim()) { message.error('Name cannot be empty'); return }
+  renaming.value = true
+  try {
+    await eventsApi.update(renameId.value, { name: renameValue.value.trim() })
+    message.success('Event renamed')
+    renameVisible.value = false
+    fetchData()
+  } catch (e) { message.error(e?.response?.data?.message || 'Failed to rename') }
+  finally { renaming.value = false }
+}
 
 const quarterDefs = [
   { num: 1, label: 'P1 · Jan-Apr' },

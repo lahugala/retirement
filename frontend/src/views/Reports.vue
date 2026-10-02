@@ -2,28 +2,69 @@
   <div>
     <a-page-header title="Reports" sub-title="Financial summaries for board members" />
 
-    <!-- Global Net Balance Bar -->
-    <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+    <!-- Global Summary Cards -->
+    <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
       <a-col :span="8">
-        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (globalNetBalance >= 0 ? '#3f8600' : '#cf1322') }">
-          <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '16px 20px' }" :style="{ borderTop: '3px solid ' + (globalNetBalance >= 0 ? '#52c41a' : '#ff4d4f') }">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <div style="width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center" :style="{ background: globalNetBalance >= 0 ? '#f6ffed' : '#fff2f0' }">
+              <AccountBookOutlined :style="{ fontSize: '18px', color: globalNetBalance >= 0 ? '#52c41a' : '#ff4d4f' }" />
+            </div>
+            <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
+          </div>
         </a-card>
       </a-col>
       <a-col :span="8">
-        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
-          <a-statistic title="Total Budgeted (Active Events)" :value="globalBudgeted" prefix="Rs." precision="2" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '16px 20px' }" :style="{ borderTop: '3px solid #1890ff' }">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <div style="width: 40px; height: 40px; border-radius: 10px; background: #e6f7ff; display: flex; align-items: center; justify-content: center">
+              <FundOutlined style="font-size: 18px; color: #1890ff" />
+            </div>
+            <a-statistic title="Total Budgeted (Active)" :value="globalBudgeted" prefix="Rs." precision="2" :value-style="{ fontWeight: 600, fontSize: '18px' }" />
+          </div>
         </a-card>
       </a-col>
       <a-col :span="8">
-        <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (globalProjected >= 0 ? '#3f8600' : '#cf1322') }">
-          <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+        <a-card size="small" :bordered="true" :body-style="{ padding: '16px 20px' }" :style="{ borderTop: '3px solid ' + (globalProjected >= 0 ? '#52c41a' : '#ff4d4f') }">
+          <div style="display: flex; align-items: center; gap: 12px">
+            <div style="width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center" :style="{ background: globalProjected >= 0 ? '#f6ffed' : '#fff2f0' }">
+              <RiseOutlined :style="{ fontSize: '18px', color: globalProjected >= 0 ? '#52c41a' : '#ff4d4f' }" />
+            </div>
+            <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
+          </div>
         </a-card>
       </a-col>
     </a-row>
 
-    <a-tabs default-active-key="dashboard">
+    <!-- Two-column layout: Sidebar + Content -->
+    <a-row :gutter="[16, 0]">
+      <!-- Sidebar Navigation -->
+      <a-col :span="5">
+        <a-card :body-style="{ padding: '8px' }" size="small">
+          <div v-for="group in navGroups" :key="group.label" style="margin-bottom: 4px">
+            <div style="padding: 8px 12px 4px; font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600">{{ group.label }}</div>
+            <div
+              v-for="item in group.items"
+              :key="item.key"
+              @click="activeKey = item.key"
+              :style="{
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s',
+                background: activeKey === item.key ? '#e6f7ff' : 'transparent',
+                color: activeKey === item.key ? '#1890ff' : '#595959',
+                fontWeight: activeKey === item.key ? 600 : 400,
+              }"
+            >
+              <component :is="item.icon" :style="{ fontSize: '15px' }" />
+              <span>{{ item.label }}</span>
+            </div>
+          </div>
+        </a-card>
+      </a-col>
+
+      <!-- Content Area -->
+      <a-col :span="19">
       <!-- Dashboard Tab -->
-      <a-tab-pane key="dashboard" tab="Dashboard">
+      <div v-show="activeKey === 'dashboard'">
         <a-row :gutter="[16, 16]">
           <a-col :xs="24" :sm="12" :lg="6">
             <a-card>
@@ -46,10 +87,10 @@
             </a-card>
           </a-col>
         </a-row>
-      </a-tab-pane>
+      </div>
 
       <!-- Income Statement -->
-      <a-tab-pane key="income" tab="Income Statement">
+      <div v-show="activeKey === 'income'">
         <a-card>
           <template #extra>
             <a-space>
@@ -78,10 +119,10 @@
             <a-col :span="8"><strong>Net Income:</strong> <span :style="{ color: (incomeData.net_income || 0) >= 0 ? '#3f8600' : '#cf1322' }">Rs. {{ Number(incomeData.net_income || 0).toFixed(2) }}</span></a-col>
           </a-row>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Member Contributions -->
-      <a-tab-pane key="contributions" tab="Member Contributions">
+      <div v-show="activeKey === 'contributions'">
         <a-card>
           <template #extra>
             <a-space>
@@ -114,10 +155,10 @@
           </a-tabs>
           <p><strong>Grand Total:</strong> Rs. {{ Number(contributionsData.grand_total || 0).toFixed(2) }}</p>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Quarterly Summary -->
-      <a-tab-pane key="quarterly" tab="Quarterly">
+      <div v-show="activeKey === 'quarterly'">
         <a-card>
           <template #extra>
             <a-space>
@@ -166,10 +207,10 @@
             <a-table-column title="Retirees" dataIndex="retiree_name" ellipsis />
           </a-table>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Retired Members Report -->
-      <a-tab-pane key="retired-members" tab="Retired Members">
+      <div v-show="activeKey === 'retired-members'">
         <a-card>
           <template #extra>
             <a-space>
@@ -190,10 +231,10 @@
             <a-table-column title="Retirement Date" dataIndex="retirement_date" />
           </a-table>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Gift History Report -->
-      <a-tab-pane key="gift-history" tab="Gift History">
+      <div v-show="activeKey === 'gift-history'">
         <a-card>
           <template #extra>
             <a-space>
@@ -244,10 +285,10 @@
             </a-table-column>
           </a-table>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Gift Not Issued Report -->
-      <a-tab-pane key="gift-not-issued" tab="Gifts Not Issued">
+      <div v-show="activeKey === 'gift-not-issued'">
         <a-card>
           <template #extra>
             <a-space>
@@ -278,10 +319,10 @@
             </a-table-column>
           </a-table>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Account Balances -->
-      <a-tab-pane key="account-balances" tab="Account Balances">
+      <div v-show="activeKey === 'account-balances'">
         <a-card>
           <template #extra>
             <a-space>
@@ -321,10 +362,10 @@
             </a-table-column>
           </a-table>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Event P&L -->
-      <a-tab-pane key="event-pnl" tab="Event P&L">
+      <div v-show="activeKey === 'event-pnl'">
         <a-card>
           <template #extra>
             <a-space>
@@ -414,10 +455,10 @@
           </div>
           <div v-else style="padding: 24px; text-align: center; color: #999">Select an event to view P&L</div>
         </a-card>
-      </a-tab-pane>
+      </div>
 
       <!-- Budget Planning Tab -->
-      <a-tab-pane key="planning" tab="Budget Planning">
+      <div v-show="activeKey === 'planning'">
         <a-card>
           <template #extra>
             <a-space>
@@ -486,16 +527,57 @@
             <a-col :span="8"><strong>Projected After Budget:</strong> <span :style="{ color: planningAvailable >= 0 ? '#3f8600' : '#cf1322' }">Rs. {{ Number(planningAvailable).toFixed(2) }}</span></a-col>
           </a-row>
         </a-card>
-      </a-tab-pane>
-    </a-tabs>
+      </div>
+      </a-col>
+    </a-row>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, markRaw } from 'vue'
 import { reports as reportsApi, events as eventApi, giftStock as giftApi } from '../api/index.js'
 import { message } from 'ant-design-vue'
+import {
+  DashboardOutlined, DollarOutlined, TeamOutlined, GiftOutlined,
+  AccountBookOutlined, FundOutlined, RiseOutlined, PieChartOutlined,
+  BarChartOutlined, FileTextOutlined, UserDeleteOutlined, InboxOutlined,
+  SwapOutlined, WalletOutlined, CalendarOutlined, AuditOutlined,
+} from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+
+const activeKey = ref('dashboard')
+const navGroups = [
+  {
+    label: 'Financial',
+    items: [
+      { key: 'dashboard', label: 'Dashboard', icon: markRaw(DashboardOutlined) },
+      { key: 'income', label: 'Income Statement', icon: markRaw(DollarOutlined) },
+      { key: 'account-balances', label: 'Account Balances', icon: markRaw(WalletOutlined) },
+      { key: 'quarterly', label: 'Quarterly Summary', icon: markRaw(BarChartOutlined) },
+    ],
+  },
+  {
+    label: 'Operations',
+    items: [
+      { key: 'event-pnl', label: 'Event P&L', icon: markRaw(PieChartOutlined) },
+      { key: 'planning', label: 'Budget Planning', icon: markRaw(FundOutlined) },
+    ],
+  },
+  {
+    label: 'Members',
+    items: [
+      { key: 'contributions', label: 'Contributions', icon: markRaw(TeamOutlined) },
+      { key: 'retired-members', label: 'Retired Members', icon: markRaw(UserDeleteOutlined) },
+    ],
+  },
+  {
+    label: 'Gifts',
+    items: [
+      { key: 'gift-history', label: 'Gift History', icon: markRaw(GiftOutlined) },
+      { key: 'gift-not-issued', label: 'Not Issued', icon: markRaw(InboxOutlined) },
+    ],
+  },
+]
 
 const dashboardData = reactive({ total_income: 0, total_expense: 0, net_balance: 0, active_events: 0 })
 const incomeData = reactive({ categories: [], total_income: 0, total_expense: 0, net_income: 0 })

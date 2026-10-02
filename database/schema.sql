@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS members (
     computer_no VARCHAR(50) DEFAULT NULL,
     retirement_date DATE DEFAULT NULL,
     status ENUM('active','retired','deceased','resigned','inactive','dismissed') DEFAULT 'active',
+    phone VARCHAR(30) DEFAULT NULL,
+    address TEXT DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
