@@ -82,6 +82,16 @@
             </template>
           </a-dropdown>
 
+          <a-button
+            type="text"
+            class="theme-toggle"
+            :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+            @click="toggleTheme"
+          >
+            <SunOutlined v-if="isDark" />
+            <MoonOutlined v-else />
+          </a-button>
+
           <!-- User dropdown -->
           <a-dropdown placement="bottomRight">
             <div class="user-dropdown-trigger">
@@ -131,8 +141,10 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { canAccess as checkAccess } from '../utils/permissions.js'
+import { useTheme } from '../composables/useTheme.js'
 
 const auth = useAuthStore()
+const { isDark, toggleTheme } = useTheme()
 const router = useRouter()
 const route = useRoute()
 const collapsed = ref(false)
@@ -293,6 +305,16 @@ function logout() {
   align-items: center;
   gap: 4px;
   border-radius: 6px;
+}
+
+.theme-toggle {
+  color: rgba(255,255,255,0.75);
+  font-size: 17px;
+}
+
+.theme-toggle:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
 }
 
 .user-dropdown-trigger {

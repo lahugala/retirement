@@ -72,6 +72,7 @@ $routes = [
     ['POST',   '/api/members/{id}/sync-retirement', 'MembersController@syncRetirement'],
     ['POST',   '/api/members/sync-all',   'MembersController@syncAll'],
     ['POST',   '/api/members/download-images', 'MembersController@downloadImages'],
+    ['POST',   '/api/members/bulk-import', 'MembersController@bulkImport'],
 
     // Categories
     ['GET',    '/api/categories',           'CategoryController@index'],

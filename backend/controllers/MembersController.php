@@ -91,6 +91,75 @@ class MembersController {
         Response::success($stmt->fetch(), 'Member created', 201);
     }
 
+    // -----------------------------------------------------------
+    // Bulk import members by computer number from external API
+    // -----------------------------------------------------------
+    public static function bulkImport(): void {
+        AuthMiddleware::requireRole('admin');
+        $input = json_decode(file_get_contents('php://input'), true);
+        $computerNos = $input['computer_nos'] ?? [];
+
+        if (empty($computerNos) || !is_array($computerNos)) {
+            Response::error('computer_nos array is required', 422);
+        }
+
+        $pdo = getDbConnection();
+        $userId = AuthMiddleware::getUserId();
+
+        $created = 0;
+        $skipped = 0;
+        $failed = 0;
+        $errors = [];
+
+        foreach ($computerNos as $computerNo) {
+            $computerNo = trim((string)$computerNo);
+            if ($computerNo === '') { $failed++; $errors[] = ['computer_no' => $computerNo, 'error' => 'Empty']; continue; }
+
+            // Skip if already exists
+            $stmt = $pdo->prepare("SELECT id FROM members WHERE computer_no = ?");
+            $stmt->execute([$computerNo]);
+            if ($stmt->fetch()) { $skipped++; continue; }
+
+            // Fetch from external API
+            $rec = self::fetchEmployee($computerNo);
+            if (!$rec) {
+                $failed++;
+                $errors[] = ['computer_no' => $computerNo, 'error' => 'Not found in external API'];
+                continue;
+            }
+
+            $name = trim($rec['EMA_FULL_NAME'] ?? '');
+            if ($name === '') {
+                $failed++;
+                $errors[] = ['computer_no' => $computerNo, 'error' => 'No name in API record'];
+                continue;
+            }
+
+            $retirementDate = isset($rec['EMA_RETIREMENT_DATE']) && $rec['EMA_RETIREMENT_DATE']
+                ? date('Y-m-d', strtotime(substr($rec['EMA_RETIREMENT_DATE'], 0, 10)))
+                : null;
+            $nic = $rec['EMA_NIC_NO'] ?? null;
+            $serviceNo = $rec['EMA_SERVICE_NO'] ?? null;
+            $designation = self::fetchDesignation($computerNo);
+
+            $id = UUID::v4();
+            $stmt = $pdo->prepare("INSERT INTO members (id, name, nic, service_no, designation, computer_no, retirement_date, status)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, 'active')");
+            $stmt->execute([$id, $name, $nic, $serviceNo, $designation, $computerNo, $retirementDate]);
+
+            AuditController::log('members', $id, 'create', null, ['computer_no' => $computerNo, 'name' => $name, 'source' => 'bulk_import'], $userId);
+            $created++;
+        }
+
+        Response::success([
+            'total' => count($computerNos),
+            'created' => $created,
+            'skipped' => $skipped,
+            'failed' => $failed,
+            'errors' => $errors,
+        ], "Import complete: {$created} created, {$skipped} skipped, {$failed} failed");
+    }
+
     public static function update(string $id): void {
         AuthMiddleware::requireAnyRole(['admin', 'treasurer']);
         $input = json_decode(file_get_contents('php://input'), true);
