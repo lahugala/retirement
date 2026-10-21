@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS gift_stock_movements (
     event_id CHAR(36) DEFAULT NULL,
     member_id CHAR(36) DEFAULT NULL,
     notes TEXT DEFAULT NULL,
+    received_date DATE DEFAULT NULL,
     created_by CHAR(36) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_gsm_gift FOREIGN KEY (gift_id) REFERENCES gift_stock(id) ON DELETE CASCADE,

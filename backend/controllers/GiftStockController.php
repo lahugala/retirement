@@ -158,9 +158,10 @@ class GiftStockController {
                 ->execute([$quantity, $unitPrice, $id]);
 
             $movementId = UUID::v4();
-            $pdo->prepare("INSERT INTO gift_stock_movements (id, gift_id, movement_type, quantity, unit_price, notes, created_by)
-                           VALUES (?, ?, 'received', ?, ?, ?, ?)")
-                ->execute([$movementId, $id, $quantity, $unitPrice, $input['notes'] ?? null, AuthMiddleware::getUserId()]);
+            $receivedDate = $input['received_date'] ?? null;
+            $pdo->prepare("INSERT INTO gift_stock_movements (id, gift_id, movement_type, quantity, unit_price, notes, received_date, created_by)
+                           VALUES (?, ?, 'received', ?, ?, ?, ?, ?)")
+                ->execute([$movementId, $id, $quantity, $unitPrice, $input['notes'] ?? null, $receivedDate ?: null, AuthMiddleware::getUserId()]);
 
             $pdo->commit();
         } catch (Exception $e) {
@@ -310,6 +311,11 @@ class GiftStockController {
         if (isset($input['unit_price'])) {
             $fields[] = 'unit_price = ?';
             $params[] = (float)$input['unit_price'];
+        }
+
+        if (array_key_exists('received_date', $input)) {
+            $fields[] = 'received_date = ?';
+            $params[] = $input['received_date'] ?: null;
         }
 
         $params[] = $movementId;

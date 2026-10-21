@@ -139,63 +139,63 @@
         <!-- Details -->
         <div style="padding: 20px 24px">
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #e6f7ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #e6f7ff">
                 <IdcardOutlined style="color: #1890ff; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">NIC Number</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.nic || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">NIC Number</div>
+                <div class="profile-detail-value">{{ profileMember.nic || '-' }}</div>
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #f6ffed; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #f6ffed">
                 <NumberOutlined style="color: #52c41a; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Service Number</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.service_no || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">Service Number</div>
+                <div class="profile-detail-value">{{ profileMember.service_no || '-' }}</div>
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #fff7e6; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #fff7e6">
                 <ProfileOutlined style="color: #fa8c16; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Designation</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.designation || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">Designation</div>
+                <div class="profile-detail-value">{{ profileMember.designation || '-' }}</div>
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #f9f0ff; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #f9f0ff">
                 <CalendarOutlined style="color: #722ed1; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Retirement Date</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.retirement_date || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">Retirement Date</div>
+                <div class="profile-detail-value">{{ profileMember.retirement_date || '-' }}</div>
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #e6fffb; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #e6fffb">
                 <PhoneOutlined style="color: #13c2c2; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Phone</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.phone || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">Phone</div>
+                <div class="profile-detail-value">{{ profileMember.phone || '-' }}</div>
               </div>
             </div>
 
-            <div style="display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border-radius: 8px; border: 1px solid #f0f0f0">
-              <div style="width: 36px; height: 36px; border-radius: 8px; background: #fff1f0; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+            <div class="profile-detail-row">
+              <div class="profile-detail-icon" style="background: #fff1f0">
                 <EnvironmentOutlined style="color: #f5222d; font-size: 16px" />
               </div>
-              <div style="min-width: 0">
-                <div style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.5px">Address</div>
-                <div style="font-size: 14px; color: #262626; font-weight: 500">{{ profileMember.address || '-' }}</div>
+              <div class="profile-detail-text">
+                <div class="profile-detail-label">Address</div>
+                <div class="profile-detail-value">{{ profileMember.address || '-' }}</div>
               </div>
             </div>
           </div>
@@ -404,3 +404,38 @@ async function fetchData() {
 
 onMounted(fetchData)
 </script>
+
+<style scoped>
+.profile-detail-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fafafa;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+}
+.profile-detail-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.profile-detail-text {
+  min-width: 0;
+}
+.profile-detail-label {
+  font-size: 11px;
+  color: #999;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.profile-detail-value {
+  font-size: 14px;
+  color: #262626;
+  font-weight: 500;
+}
+</style>

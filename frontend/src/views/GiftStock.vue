@@ -82,6 +82,9 @@
         <a-form-item label="Unit Price (LKR)" v-if="movementType === 'received'" required>
           <a-input-number v-model:value="movementForm.unit_price" :min="0" :step="10" style="width: 100%" />
         </a-form-item>
+        <a-form-item label="Received Date" v-if="movementType === 'received'">
+          <a-date-picker v-model:value="movementForm.received_date" style="width: 100%" value-format="YYYY-MM-DD" />
+        </a-form-item>
         <a-form-item label="Event" v-if="movementType === 'issued'">
           <a-select v-model:value="movementForm.event_id" placeholder="Optional - link to an event" style="width: 100%" allowClear>
             <a-select-option v-for="ev in events" :key="ev.id" :value="ev.id">{{ ev.name }}</a-select-option>
@@ -97,6 +100,9 @@
     <a-drawer :title="`Movement History - ${currentGift?.name || ''}`" placement="right" width="520" :open="historyVisible" @close="historyVisible = false">
       <a-table :dataSource="historyItems" :loading="historyLoading" rowKey="id" size="small" :pagination="historyPagination" @change="handleHistoryChange">
         <a-table-column title="Date" dataIndex="created_at" width="110" />
+        <a-table-column title="Received" dataIndex="received_date" width="110">
+          <template #default="{ record }">{{ record.received_date || '-' }}</template>
+        </a-table-column>
         <a-table-column title="Type" dataIndex="movement_type" width="80">
           <template #default="{ record }">
             <a-tag :color="record.movement_type === 'received' ? 'green' : 'blue'">
@@ -139,6 +145,9 @@
         <a-form-item label="Unit Price" required v-if="editMovementForm.movement_type === 'received'">
           <a-input-number v-model:value="editMovementForm.unit_price" :min="0" :step="10" style="width: 100%" />
         </a-form-item>
+        <a-form-item label="Received Date" v-if="editMovementForm.movement_type === 'received'">
+          <a-date-picker v-model:value="editMovementForm.received_date" style="width: 100%" value-format="YYYY-MM-DD" />
+        </a-form-item>
         <a-form-item label="Notes">
           <a-textarea v-model:value="editMovementForm.notes" :rows="2" />
         </a-form-item>
@@ -152,6 +161,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { giftStock as api, events as eventsApi } from '../api/index.js'
 import { useAuthStore } from '../stores/auth.js'
 import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
 
 const auth = useAuthStore()
 const items = ref([])
@@ -168,7 +178,7 @@ const movementModalVisible = ref(false)
 const movementType = ref('received')
 const movementSubmitting = ref(false)
 const currentGift = ref(null)
-const movementForm = reactive({ quantity: 1, unit_price: 0, event_id: null, notes: '' })
+const movementForm = reactive({ quantity: 1, unit_price: 0, event_id: null, notes: '', received_date: null })
 
 const historyVisible = ref(false)
 const historyItems = ref([])
@@ -178,7 +188,7 @@ const historyPage = ref(1)
 
 const editMovementModalVisible = ref(false)
 const editMovementSubmitting = ref(false)
-const editMovementForm = reactive({ movement_id: null, quantity: 1, unit_price: 0, notes: '', movement_type: 'issued' })
+const editMovementForm = reactive({ movement_id: null, quantity: 1, unit_price: 0, notes: '', movement_type: 'issued', received_date: null })
 
 const movementTitle = computed(() =>
   movementType.value === 'received' ? 'Receive Stock' : 'Issue Stock'
@@ -244,7 +254,7 @@ async function handleDelete(record) {
 function showMovement(record, type) {
   currentGift.value = record
   movementType.value = type
-  Object.assign(movementForm, { quantity: 1, unit_price: type === 'received' ? Number(record.unit_price) : 0, event_id: null, notes: '' })
+  Object.assign(movementForm, { quantity: 1, unit_price: type === 'received' ? Number(record.unit_price) : 0, event_id: null, notes: '', received_date: type === 'received' ? dayjs().format('YYYY-MM-DD') : null })
   movementModalVisible.value = true
 }
 
@@ -260,6 +270,7 @@ async function confirmMovement() {
       unit_price: movementType.value === 'received' ? movementForm.unit_price : currentGift.value.unit_price,
       event_id: movementForm.event_id || null,
       notes: movementForm.notes || null,
+      received_date: movementType.value === 'received' ? movementForm.received_date : null,
     }
     if (movementType.value === 'received') {
       await api.receive(currentGift.value.id, payload)
@@ -304,6 +315,7 @@ function showEditMovement(record) {
     unit_price: Number(record.unit_price),
     notes: record.notes || '',
     movement_type: record.movement_type,
+    received_date: record.received_date || null,
   })
   editMovementModalVisible.value = true
 }
@@ -313,7 +325,10 @@ async function confirmEditMovement() {
   editMovementSubmitting.value = true
   try {
     const payload = { quantity: editMovementForm.quantity, notes: editMovementForm.notes || null }
-    if (editMovementForm.movement_type === 'received') payload.unit_price = editMovementForm.unit_price
+    if (editMovementForm.movement_type === 'received') {
+      payload.unit_price = editMovementForm.unit_price
+      payload.received_date = editMovementForm.received_date || null
+    }
     await api.updateMovement(editMovementForm.movement_id, payload)
     message.success('Movement updated')
     editMovementModalVisible.value = false

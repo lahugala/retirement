@@ -82,15 +82,17 @@
             </template>
           </a-dropdown>
 
-          <a-button
-            type="text"
-            class="theme-toggle"
-            :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-            @click="toggleTheme"
-          >
-            <SunOutlined v-if="isDark" />
-            <MoonOutlined v-else />
-          </a-button>
+          <a-tooltip :title="isDark ? 'Switch to light mode' : 'Switch to dark mode'" placement="bottom">
+            <button
+              class="theme-toggle"
+              :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
+              @click="toggleTheme"
+            >
+              <BulbFilled v-if="isDark" style="font-size: 14px; color: #faad14" />
+              <BulbOutlined v-else style="font-size: 14px" />
+              <span>{{ isDark ? 'Light' : 'Dark' }}</span>
+            </button>
+          </a-tooltip>
 
           <!-- User dropdown -->
           <a-dropdown placement="bottomRight">
@@ -142,6 +144,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth.js'
 import { canAccess as checkAccess } from '../utils/permissions.js'
 import { useTheme } from '../composables/useTheme.js'
+import { BulbOutlined, BulbFilled } from '@ant-design/icons-vue'
 
 const auth = useAuthStore()
 const { isDark, toggleTheme } = useTheme()
@@ -308,13 +311,28 @@ function logout() {
 }
 
 .theme-toggle {
-  color: rgba(255,255,255,0.75);
-  font-size: 17px;
+  height: 32px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s;
+  padding: 0 14px;
 }
 
 .theme-toggle:hover {
   color: #fff;
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.18);
+  border-color: rgba(255,255,255,0.45);
+}
+
+.theme-toggle span {
+  margin-left: 6px;
 }
 
 .user-dropdown-trigger {

@@ -438,7 +438,7 @@ class ReportController {
         $stmt = $pdo->prepare("
             SELECT m.id, m.gift_id, g.name AS gift_name, g.unit, m.movement_type,
                    m.quantity, m.unit_price, m.event_id, e.name AS event_name,
-                   m.member_id, mb.name AS member_name, m.notes,
+                   m.member_id, mb.name AS member_name, m.notes, m.received_date,
                    u.name AS created_by_name, m.created_at
             FROM gift_stock_movements m
             LEFT JOIN gift_stock g ON m.gift_id = g.id
