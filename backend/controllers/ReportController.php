@@ -558,28 +558,109 @@ class ReportController {
     }
 
     // -----------------------------------------------------------
-    // Retired Members (filtered by retirement_date range)
+    // Retired Members (filtered by date range / status / designation / search)
+    // Returns the full member record so the UI table and CSV export can
+    // show every detail. Omitting date_from / date_to means "all dates".
     // -----------------------------------------------------------
     public static function retiredMembers(): void {
         AuthMiddleware::requireAnyRole(['admin', 'treasurer', 'board']);
         $pdo = getDbConnection();
 
-        $dateFrom = $_GET['date_from'] ?? date('Y-01-01');
-        $dateTo   = $_GET['date_to'] ?? date('Y-m-d');
+        $dateFrom    = trim((string)($_GET['date_from'] ?? ''));
+        $dateTo      = trim((string)($_GET['date_to'] ?? ''));
+        $search      = trim((string)($_GET['search'] ?? ''));
+        $status      = trim((string)($_GET['status'] ?? ''));
+        $designation = trim((string)($_GET['designation'] ?? ''));
 
-        $stmt = $pdo->prepare("SELECT name, nic, service_no, computer_no, retirement_date
-                               FROM members
-                               WHERE retirement_date IS NOT NULL
-                                 AND retirement_date BETWEEN ? AND ?
-                               ORDER BY retirement_date ASC");
-        $stmt->execute([$dateFrom, $dateTo]);
+        $where  = ['m.retirement_date IS NOT NULL'];
+        $params = [];
+
+        if ($dateFrom !== '') { $where[] = 'm.retirement_date >= ?'; $params[] = $dateFrom; }
+        if ($dateTo !== '')   { $where[] = 'm.retirement_date <= ?'; $params[] = $dateTo; }
+        if ($status !== '' && $status !== 'all') { $where[] = 'm.status = ?'; $params[] = $status; }
+        if ($designation !== '' && $designation !== 'all') { $where[] = 'm.designation = ?'; $params[] = $designation; }
+
+        if ($search !== '') {
+            $where[] = '(m.name LIKE ? OR m.nic LIKE ? OR m.service_no LIKE ? OR m.computer_no LIKE ? OR m.phone LIKE ? OR m.designation LIKE ?)';
+            $like = '%' . $search . '%';
+            for ($i = 0; $i < 6; $i++) { $params[] = $like; }
+        }
+
+        $sql = "SELECT m.id, m.name, m.nic, m.service_no, m.designation, m.computer_no,
+                       m.retirement_date, m.status, m.phone, m.address,
+                       m.created_at, m.updated_at,
+                       (SELECT COUNT(*) FROM gift_stock_movements gm
+                         WHERE gm.member_id = m.id AND gm.movement_type = 'issued') AS gift_count
+                FROM members m
+                WHERE " . implode(' AND ', $where) . "
+                ORDER BY m.retirement_date ASC, m.name ASC";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         $rows = $stmt->fetchAll();
 
+        $today = new DateTimeImmutable(date('Y-m-d'));
+        $byDesignation = [];
+        $withPhone = 0;
+        $withAddress = 0;
+        $withGift = 0;
+
+        foreach ($rows as &$r) {
+            $r['gift_count'] = (int)($r['gift_count'] ?? 0);
+            if ($r['gift_count'] > 0) { $withGift++; }
+
+            if (!empty($r['phone']))   { $withPhone++; }
+            if (!empty($r['address'])) { $withAddress++; }
+
+            $label = trim((string)($r['designation'] ?? ''));
+            if ($label === '') { $label = 'Unspecified'; }
+            $byDesignation[$label] = ($byDesignation[$label] ?? 0) + 1;
+
+            // Completed years since retirement (0 for future retirement dates)
+            $years = null;
+            if (!empty($r['retirement_date'])) {
+                $rd = DateTimeImmutable::createFromFormat('Y-m-d', substr((string)$r['retirement_date'], 0, 10));
+                if ($rd) {
+                    $years = ($rd > $today) ? 0 : (int)$rd->diff($today)->y;
+                }
+            }
+            $r['years_retired'] = $years;
+        }
+        unset($r);
+
+        arsort($byDesignation);
+        $designationBreakdown = [];
+        foreach ($byDesignation as $label => $count) {
+            $designationBreakdown[] = ['designation' => $label, 'count' => $count];
+        }
+
+        // Distinct designations across every retiree, for the filter dropdown
+        $designations = $pdo->query("SELECT TRIM(designation) AS designation, COUNT(*) AS total
+                                     FROM members
+                                     WHERE retirement_date IS NOT NULL
+                                       AND designation IS NOT NULL AND TRIM(designation) <> ''
+                                     GROUP BY TRIM(designation)
+                                     ORDER BY TRIM(designation) ASC")->fetchAll();
+
         Response::success([
-            'date_from' => $dateFrom,
-            'date_to'   => $dateTo,
+            'date_from' => $dateFrom !== '' ? $dateFrom : null,
+            'date_to'   => $dateTo !== '' ? $dateTo : null,
+            'filters'   => [
+                'search'      => $search,
+                'status'      => $status !== '' ? $status : 'all',
+                'designation' => $designation !== '' ? $designation : 'all',
+            ],
             'members'   => $rows,
             'total'     => count($rows),
+            'summary'   => [
+                'total'        => count($rows),
+                'with_phone'   => $withPhone,
+                'with_address' => $withAddress,
+                'with_gift'    => $withGift,
+                'without_gift' => count($rows) - $withGift,
+            ],
+            'designations'          => $designations,
+            'designation_breakdown' => $designationBreakdown,
         ]);
     }
 }

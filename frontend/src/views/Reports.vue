@@ -10,7 +10,7 @@
             <div style="width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center" :style="{ background: globalNetBalance >= 0 ? '#f6ffed' : '#fff2f0' }">
               <AccountBookOutlined :style="{ fontSize: '18px', color: globalNetBalance >= 0 ? '#52c41a' : '#ff4d4f' }" />
             </div>
-            <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
+            <a-statistic title="Current Net Balance" :value="globalNetBalance" prefix="Rs." :precision="2" :value-style="{ color: globalNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
           </div>
         </a-card>
       </a-col>
@@ -20,7 +20,7 @@
             <div style="width: 40px; height: 40px; border-radius: 10px; background: #e6f7ff; display: flex; align-items: center; justify-content: center">
               <FundOutlined style="font-size: 18px; color: #1890ff" />
             </div>
-            <a-statistic title="Total Budgeted (Active)" :value="globalBudgeted" prefix="Rs." precision="2" :value-style="{ fontWeight: 600, fontSize: '18px' }" />
+            <a-statistic title="Total Budgeted (Active)" :value="globalBudgeted" prefix="Rs." :precision="2" :value-style="{ fontWeight: 600, fontSize: '18px' }" />
           </div>
         </a-card>
       </a-col>
@@ -30,7 +30,7 @@
             <div style="width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center" :style="{ background: globalProjected >= 0 ? '#f6ffed' : '#fff2f0' }">
               <RiseOutlined :style="{ fontSize: '18px', color: globalProjected >= 0 ? '#52c41a' : '#ff4d4f' }" />
             </div>
-            <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
+            <a-statistic title="Projected Balance" :value="globalProjected" prefix="Rs." :precision="2" :value-style="{ color: globalProjected >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600, fontSize: '18px' }" />
           </div>
         </a-card>
       </a-col>
@@ -213,22 +213,112 @@
       <div v-show="activeKey === 'retired-members'">
         <a-card>
           <template #extra>
-            <a-space>
+            <a-space wrap>
+              <a-input
+                v-model:value="rmSearch"
+                placeholder="Search name / NIC / phone"
+                allow-clear
+                style="width: 240px"
+                @pressEnter="fetchRetiredMembers"
+              >
+                <template #prefix><SearchOutlined style="color: #bfbfbf" /></template>
+              </a-input>
               <a-date-picker v-model:value="rmDateFrom" placeholder="From" value-format="YYYY-MM-DD" />
               <a-date-picker v-model:value="rmDateTo" placeholder="To" value-format="YYYY-MM-DD" />
-              <a-button type="primary" @click="fetchRetiredMembers">Search</a-button>
-              <a-button @click="exportCSV(retiredMembers, 'retired-members.csv')" :disabled="retiredMembers.length === 0">Export CSV</a-button>
+              <a-select v-model:value="rmStatus" style="width: 150px" :options="rmStatusOptions" />
+              <a-select
+                v-model:value="rmDesignation"
+                placeholder="All designations"
+                style="width: 190px"
+                allow-clear
+                show-search
+                option-filter-prop="label"
+                :options="rmDesignationOptions"
+              />
+              <a-button type="primary" :loading="rmLoading" @click="fetchRetiredMembers">Search</a-button>
+              <a-button @click="resetRetiredFilters">Reset</a-button>
+              <a-button type="primary" ghost :loading="rmExporting" :disabled="retiredMembers.length === 0" @click="exportRetiredMembers(false)">
+                <template #icon><DownloadOutlined /></template>
+                Export Filtered
+              </a-button>
+              <a-button :loading="rmExporting" @click="exportRetiredMembers(true)">
+                <template #icon><DownloadOutlined /></template>
+                Export All Dates
+              </a-button>
             </a-space>
           </template>
 
-          <a-statistic title="Total Retired" :value="retiredTotal" suffix="members" :value-style="{ color: '#1890ff' }" style="margin-bottom: 16px" />
+          <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
+            <a-col :span="6">
+              <a-statistic title="Retired Members" :value="retiredTotal" suffix="members" :value-style="{ color: '#1890ff', fontSize: '20px' }" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic title="With Phone" :value="retiredSummary.with_phone" :value-style="{ color: '#13c2c2', fontSize: '20px' }" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic title="With Address" :value="retiredSummary.with_address" :value-style="{ color: '#722ed1', fontSize: '20px' }" />
+            </a-col>
+            <a-col :span="6">
+              <a-statistic title="Gift Issued" :value="retiredSummary.with_gift" :suffix="`/ ${retiredTotal}`" :value-style="{ color: '#52c41a', fontSize: '20px' }" />
+            </a-col>
+          </a-row>
 
-          <a-table :dataSource="retiredMembers" rowKey="nic" size="small" :pagination="{ pageSize: 20 }">
-            <a-table-column title="Name" dataIndex="name" />
-            <a-table-column title="NIC" dataIndex="nic" />
-            <a-table-column title="Service No" dataIndex="service_no" />
-            <a-table-column title="Computer No" dataIndex="computer_no" />
-            <a-table-column title="Retirement Date" dataIndex="retirement_date" />
+          <div v-if="retiredDesignationBreakdown.length" style="margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center">
+            <span style="font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.6px; margin-right: 4px">By designation</span>
+            <a-tag v-for="d in retiredDesignationBreakdown.slice(0, 12)" :key="d.designation" color="blue" style="margin: 0">
+              {{ d.designation }} <strong>{{ d.count }}</strong>
+            </a-tag>
+            <a-tooltip v-if="retiredDesignationBreakdown.length > 12" :title="retiredDesignationBreakdown.slice(12).map(d => d.designation + ' (' + d.count + ')').join(', ')">
+              <a-tag style="margin: 0; cursor: help">+{{ retiredDesignationBreakdown.length - 12 }} more</a-tag>
+            </a-tooltip>
+          </div>
+
+          <div style="margin-bottom: 10px; font-size: 12px; color: #8c8c8c">
+            Showing <strong>{{ retiredMembers.length }}</strong> member(s)
+            with retirement dates {{ rmDateFrom || 'beginning' }} → {{ rmDateTo || 'today' }}
+            <span v-if="rmDesignation"> · designation: {{ rmDesignation }}</span>
+            <span v-if="rmStatus && rmStatus !== 'all'"> · status: {{ rmStatus }}</span>
+            <span v-if="rmSearch"> · search: “{{ rmSearch }}”</span>
+          </div>
+
+          <a-table
+            :dataSource="retiredMembers"
+            rowKey="id"
+            size="small"
+            :loading="rmLoading"
+            :scroll="{ x: 1620 }"
+            :pagination="{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50', '100'], showTotal: (t) => `${t} members` }"
+          >
+            <a-table-column title="#" key="rowNo" width="56" align="right" fixed="left">
+              <template #default="{ index }">{{ index + 1 }}</template>
+            </a-table-column>
+            <a-table-column title="Name" dataIndex="name" width="210" fixed="left" :ellipsis="{ showTitle: true }" :sorter="(a, b) => a.name.localeCompare(b.name)" />
+            <a-table-column title="NIC" dataIndex="nic" width="125" />
+            <a-table-column title="Service No" dataIndex="service_no" width="110" />
+            <a-table-column title="Designation" dataIndex="designation" width="200" :ellipsis="{ showTitle: true }">
+              <template #default="{ record }">{{ record.designation || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Computer No" dataIndex="computer_no" width="110" />
+            <a-table-column title="Retirement Date" dataIndex="retirement_date" width="135" :sorter="(a, b) => (a.retirement_date || '').localeCompare(b.retirement_date || '')" />
+            <a-table-column title="Years Retired" dataIndex="years_retired" width="110" align="center" :sorter="(a, b) => (a.years_retired ?? -1) - (b.years_retired ?? -1)">
+              <template #default="{ record }">{{ record.years_retired ?? '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Status" dataIndex="status" width="100">
+              <template #default="{ record }">
+                <a-tag :color="memberStatusColor(record.status)" style="text-transform: capitalize">{{ record.status }}</a-tag>
+              </template>
+            </a-table-column>
+            <a-table-column title="Phone" dataIndex="phone" width="130">
+              <template #default="{ record }">{{ record.phone || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Address" dataIndex="address" width="240" :ellipsis="{ showTitle: true }">
+              <template #default="{ record }">{{ record.address || '-' }}</template>
+            </a-table-column>
+            <a-table-column title="Gift" dataIndex="gift_count" width="90" align="center">
+              <template #default="{ record }">
+                <a-tag :color="record.gift_count > 0 ? 'green' : 'default'">{{ record.gift_count > 0 ? 'Issued' : 'No' }}</a-tag>
+              </template>
+            </a-table-column>
           </a-table>
         </a-card>
       </div>
@@ -242,7 +332,11 @@
               <a-date-picker v-model:value="ghDateTo" placeholder="To" value-format="YYYY-MM-DD" />
               <a-select v-model:value="ghGiftId" placeholder="All gifts" style="width: 200px" allow-clear :options="giftOptions" />
               <a-button type="primary" @click="fetchGiftHistory">Search</a-button>
-              <a-button @click="exportCSV(giftMovements, 'gift-history.csv')" :disabled="giftMovements.length === 0">Export CSV</a-button>
+              <a-button type="primary" ghost :disabled="giftMovements.length === 0" @click="exportGiftHistoryExcel">
+                <template #icon><FileExcelOutlined /></template>
+                Export Excel
+              </a-button>
+              <a-button :disabled="giftMovements.length === 0" @click="exportCSV(giftMovements, 'gift-history.csv')">CSV</a-button>
             </a-space>
           </template>
 
@@ -378,16 +472,16 @@
             <!-- Summary Cards -->
             <a-row :gutter="[16, 16]" style="margin-bottom: 16px">
               <a-col :span="6">
-                <a-statistic title="Budget" :value="eventPnL.budget_total" prefix="Rs." precision="2" />
+                <a-statistic title="Budget" :value="eventPnL.budget_total" prefix="Rs." :precision="2" />
               </a-col>
               <a-col :span="6">
-                <a-statistic title="Total Income" :value="eventPnL.total_income" prefix="Rs." precision="2" :value-style="{ color: '#3f8600' }" />
+                <a-statistic title="Total Income" :value="eventPnL.total_income" prefix="Rs." :precision="2" :value-style="{ color: '#3f8600' }" />
               </a-col>
               <a-col :span="6">
-                <a-statistic title="Total Expense" :value="eventPnL.total_expense" prefix="Rs." precision="2" :value-style="{ color: eventPnL.total_expense > eventPnL.budget_total ? '#cf1322' : 'inherit' }" />
+                <a-statistic title="Total Expense" :value="eventPnL.total_expense" prefix="Rs." :precision="2" :value-style="{ color: eventPnL.total_expense > eventPnL.budget_total ? '#cf1322' : 'inherit' }" />
               </a-col>
               <a-col :span="6">
-                <a-statistic title="Net Result" :value="eventPnL.net_result" prefix="Rs." precision="2" :value-style="{ color: (eventPnL.net_result || 0) >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+                <a-statistic title="Net Result" :value="eventPnL.net_result" prefix="Rs." :precision="2" :value-style="{ color: (eventPnL.net_result || 0) >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
               </a-col>
             </a-row>
 
@@ -472,22 +566,22 @@
           <a-row :gutter="[16, 16]" style="margin-bottom: 20px">
             <a-col :span="6">
               <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (planningNetBalance >= 0 ? '#3f8600' : '#cf1322') }">
-                <a-statistic title="Net Balance" :value="planningNetBalance" prefix="Rs." precision="2" :value-style="{ color: planningNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+                <a-statistic title="Net Balance" :value="planningNetBalance" prefix="Rs." :precision="2" :value-style="{ color: planningNetBalance >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
               </a-card>
             </a-col>
             <a-col :span="6">
               <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
-                <a-statistic title="Total Budgeted" :value="planningTotalBudgeted" prefix="Rs." precision="2" />
+                <a-statistic title="Total Budgeted" :value="planningTotalBudgeted" prefix="Rs." :precision="2" />
               </a-card>
             </a-col>
             <a-col :span="6">
               <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }">
-                <a-statistic title="Total Spent" :value="planningTotalSpent" prefix="Rs." precision="2" :value-style="{ color: planningTotalSpent > planningTotalBudgeted ? '#cf1322' : 'inherit' }" />
+                <a-statistic title="Total Spent" :value="planningTotalSpent" prefix="Rs." :precision="2" :value-style="{ color: planningTotalSpent > planningTotalBudgeted ? '#cf1322' : 'inherit' }" />
               </a-card>
             </a-col>
             <a-col :span="6">
               <a-card size="small" :bordered="true" :body-style="{ padding: '12px 16px' }" :style="{ borderTop: '3px solid ' + (planningAvailable >= 0 ? '#3f8600' : '#cf1322') }">
-                <a-statistic title="Available" :value="planningAvailable" prefix="Rs." precision="2" :value-style="{ color: planningAvailable >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
+                <a-statistic title="Available" :value="planningAvailable" prefix="Rs." :precision="2" :value-style="{ color: planningAvailable >= 0 ? '#3f8600' : '#cf1322', fontWeight: 600 }" />
               </a-card>
             </a-col>
           </a-row>
@@ -542,8 +636,13 @@ import {
   AccountBookOutlined, FundOutlined, RiseOutlined, PieChartOutlined,
   BarChartOutlined, FileTextOutlined, UserDeleteOutlined, InboxOutlined,
   SwapOutlined, WalletOutlined, CalendarOutlined, AuditOutlined,
+  SearchOutlined, DownloadOutlined,
 } from '@ant-design/icons-vue'
 import dayjs from 'dayjs'
+import * as XLSX from 'xlsx'
+
+// Avoid binary floating-point artefacts (e.g. -1473395.5699999998) in money totals
+const round2 = (value) => Math.round((Number(value) || 0) * 100) / 100
 
 const activeKey = ref('dashboard')
 const navGroups = [
@@ -586,7 +685,7 @@ const eventPnL = reactive({ event: null, budget_lines: [], budget_total: 0, tota
 
 const globalNetBalance = ref(0)
 const globalBudgeted = ref(0)
-const globalProjected = computed(() => globalNetBalance.value - globalBudgeted.value)
+const globalProjected = computed(() => round2(globalNetBalance.value - globalBudgeted.value))
 
 const isDateFrom = ref(dayjs().startOf('year').format('YYYY-MM-DD'))
 const isDateTo = ref(dayjs().format('YYYY-MM-DD'))
@@ -599,8 +698,41 @@ const qData = reactive({ year: 0, quarters: [], year_budget: 0, year_total_incom
 
 const rmDateFrom = ref(dayjs().startOf('year').format('YYYY-MM-DD'))
 const rmDateTo = ref(dayjs().format('YYYY-MM-DD'))
+const rmSearch = ref('')
+const rmStatus = ref('all')
+const rmDesignation = ref(undefined)
+const rmDesignationOptions = ref([])
 const retiredMembers = ref([])
 const retiredTotal = ref(0)
+const retiredSummary = reactive({ total: 0, with_phone: 0, with_address: 0, with_gift: 0, without_gift: 0 })
+const retiredDesignationBreakdown = ref([])
+const rmLoading = ref(false)
+const rmExporting = ref(false)
+
+const rmStatusOptions = [
+  { label: 'All statuses', value: 'all' },
+  { label: 'Retired', value: 'retired' },
+  { label: 'Active', value: 'active' },
+  { label: 'Deceased', value: 'deceased' },
+  { label: 'Resigned', value: 'resigned' },
+  { label: 'Inactive', value: 'inactive' },
+  { label: 'Dismissed', value: 'dismissed' },
+]
+
+const RM_EXPORT_FIELDS = [
+  { key: 'name', label: 'Name' },
+  { key: 'nic', label: 'NIC' },
+  { key: 'service_no', label: 'Service No' },
+  { key: 'designation', label: 'Designation' },
+  { key: 'computer_no', label: 'Computer No' },
+  { key: 'retirement_date', label: 'Retirement Date' },
+  { key: 'years_retired', label: 'Years Retired' },
+  { key: 'status', label: 'Status' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'address', label: 'Address' },
+  { key: 'gift_count', label: 'Gifts Issued' },
+  { key: 'created_at', label: 'Recorded On', value: (r) => (r.created_at ? dayjs(r.created_at).format('YYYY-MM-DD') : '') },
+]
 
 const abDateFrom = ref(null)
 const abDateTo = ref(null)
@@ -630,9 +762,9 @@ const planningYears = computed(() => {
 })
 const planningEvents = ref([])
 const planningNetBalance = ref(0)
-const planningTotalBudgeted = computed(() => planningEvents.value.reduce((s, e) => s + Number(e.budget_allocated || 0), 0))
-const planningTotalSpent = computed(() => planningEvents.value.reduce((s, e) => s + Number(e.total_expense || 0), 0))
-const planningAvailable = computed(() => planningNetBalance.value - planningTotalBudgeted.value)
+const planningTotalBudgeted = computed(() => round2(planningEvents.value.reduce((s, e) => s + Number(e.budget_allocated || 0), 0)))
+const planningTotalSpent = computed(() => round2(planningEvents.value.reduce((s, e) => s + Number(e.total_expense || 0), 0)))
+const planningAvailable = computed(() => round2(planningNetBalance.value - planningTotalBudgeted.value))
 
 async function fetchDashboard() {
   try {
@@ -688,14 +820,59 @@ async function fetchAccountBalances() {
 }
 
 async function fetchRetiredMembers() {
+  rmLoading.value = true
   try {
     const res = await reportsApi.retiredMembers({
-      date_from: rmDateFrom.value || dayjs().startOf('year').format('YYYY-MM-DD'),
-      date_to: rmDateTo.value || dayjs().format('YYYY-MM-DD'),
+      date_from: rmDateFrom.value || undefined,
+      date_to: rmDateTo.value || undefined,
+      search: rmSearch.value || undefined,
+      status: rmStatus.value && rmStatus.value !== 'all' ? rmStatus.value : undefined,
+      designation: rmDesignation.value || undefined,
     })
     retiredMembers.value = res.data?.members || []
     retiredTotal.value = res.data?.total || 0
+    Object.assign(retiredSummary, res.data?.summary || {})
+    retiredDesignationBreakdown.value = res.data?.designation_breakdown || []
+    rmDesignationOptions.value = (res.data?.designations || []).map((d) => ({
+      label: `${d.designation} (${d.total})`,
+      value: d.designation,
+    }))
   } catch { message.error('Failed to load retired members') }
+  finally { rmLoading.value = false }
+}
+
+function resetRetiredFilters() {
+  rmSearch.value = ''
+  rmStatus.value = 'all'
+  rmDesignation.value = undefined
+  rmDateFrom.value = dayjs().startOf('year').format('YYYY-MM-DD')
+  rmDateTo.value = dayjs().format('YYYY-MM-DD')
+  fetchRetiredMembers()
+}
+
+function memberStatusColor(s) {
+  return { active: 'green', retired: 'orange', deceased: 'red', resigned: 'purple', inactive: 'default', dismissed: 'red' }[s] || 'default'
+}
+
+async function exportRetiredMembers(allDates) {
+  rmExporting.value = true
+  try {
+    let rows = retiredMembers.value
+    if (allDates) {
+      // Same search / status / designation filters, but no date restriction
+      const res = await reportsApi.retiredMembers({
+        search: rmSearch.value || undefined,
+        status: rmStatus.value && rmStatus.value !== 'all' ? rmStatus.value : undefined,
+        designation: rmDesignation.value || undefined,
+      })
+      rows = res.data?.members || []
+    }
+    if (!rows.length) { message.warning('No data to export'); return }
+    const stamp = allDates ? 'all-dates' : `${rmDateFrom.value || 'start'}_to_${rmDateTo.value || 'today'}`
+    exportRows(rows, RM_EXPORT_FIELDS, `retired-members-${stamp}.csv`)
+    message.success(`Exported ${rows.length} member(s) with full details`)
+  } catch { message.error('Export failed') }
+  finally { rmExporting.value = false }
 }
 
 async function fetchGifts() {
@@ -762,7 +939,7 @@ async function fetchGlobalBalances() {
     ])
     globalNetBalance.value = dashRes.data?.net_balance || 0
     const activeEvents = evtRes.data?.items || []
-    globalBudgeted.value = activeEvents.reduce((sum, e) => sum + Number(e.budget_allocated || 0), 0)
+    globalBudgeted.value = round2(activeEvents.reduce((sum, e) => sum + Number(e.budget_allocated || 0), 0))
   } catch {}
 }
 
@@ -774,18 +951,125 @@ async function fetchEventPnL() {
   } catch { message.error('Failed to load event P&L') }
 }
 
-function exportCSV(data, filename) {
-  if (!data || data.length === 0) { message.warning('No data to export'); return }
-  const headers = Object.keys(data[0])
-  const csvContent = [
-    headers.join(','),
-    ...data.map((row) => headers.map((h) => `"${row[h] ?? ''}"`).join(',')),
-  ].join('\n')
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+function csvEscape(value) {
+  if (value === null || value === undefined) return '""'
+  return '"' + String(value).replace(/"/g, '""') + '"'
+}
+
+function downloadCsv(lines, filename) {
+  // Prepend a UTF-8 BOM so Excel renders non-ASCII names correctly
+  const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url; a.download = filename; a.click()
   URL.revokeObjectURL(url)
+}
+
+function exportCSV(data, filename) {
+  if (!data || data.length === 0) { message.warning('No data to export'); return }
+  const headers = Object.keys(data[0])
+  const lines = [
+    headers.map(csvEscape).join(','),
+    ...data.map((row) => headers.map((h) => csvEscape(row[h])).join(',')),
+  ]
+  downloadCsv(lines, filename)
+}
+
+// Export rows with explicit, friendly column labels (and optional value formatters)
+function exportRows(rows, fields, filename) {
+  if (!rows || rows.length === 0) { message.warning('No data to export'); return }
+  const lines = [
+    fields.map((f) => csvEscape(f.label)).join(','),
+    ...rows.map((row) => fields.map((f) => csvEscape(typeof f.value === 'function' ? f.value(row) : row[f.key])).join(',')),
+  ]
+  downloadCsv(lines, filename)
+}
+
+// ---------------------------------------------------------------
+// Gift History — Excel (.xlsx) export with a data sheet + summary
+// ---------------------------------------------------------------
+function exportGiftHistoryExcel() {
+  const movements = giftMovements.value
+  if (!movements || movements.length === 0) { message.warning('No data to export'); return }
+
+  const rows = movements.map((r) => ({
+    'Date': r.created_at ? dayjs(r.created_at).toDate() : '',
+    'Gift': r.gift_name || '',
+    'Unit': r.unit || '',
+    'Type': r.movement_type === 'received' ? 'Received' : 'Issued',
+    'Quantity': Number(r.quantity) || 0,
+    'Unit Price (Rs.)': Number(r.unit_price) || 0,
+    'Total Value (Rs.)': Number(r.total_value) || 0,
+    'Member': r.member_name || '',
+    'Event': r.event_name || '',
+    'Received Date': r.received_date ? dayjs(r.received_date).toDate() : '',
+    'Recorded By': r.created_by_name || '',
+    'Notes': r.notes || '',
+  }))
+
+  const ws = XLSX.utils.json_to_sheet(rows)
+  const headers = Object.keys(rows[0])
+  const colWidths = {
+    'Date': 12, 'Gift': 30, 'Unit': 9, 'Type': 10, 'Quantity': 9,
+    'Unit Price (Rs.)': 15, 'Total Value (Rs.)': 16, 'Member': 32,
+    'Event': 28, 'Received Date': 13, 'Recorded By': 22, 'Notes': 45,
+  }
+  ws['!cols'] = headers.map((h) => ({ wch: colWidths[h] || 16 }))
+  ws['!autofilter'] = {
+    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rows.length, c: headers.length - 1 } }),
+  }
+
+  // Currency / quantity / date number formats
+  const qtyCol = headers.indexOf('Quantity')
+  const priceCol = headers.indexOf('Unit Price (Rs.)')
+  const totalCol = headers.indexOf('Total Value (Rs.)')
+  const dateCol = headers.indexOf('Date')
+  const receivedCol = headers.indexOf('Received Date')
+  const range = XLSX.utils.decode_range(ws['!ref'])
+  for (let row = 1; row <= range.e.r; row++) {
+    const qty = ws[XLSX.utils.encode_cell({ r: row, c: qtyCol })]
+    if (qty) qty.z = '#,##0'
+    const price = ws[XLSX.utils.encode_cell({ r: row, c: priceCol })]
+    if (price) price.z = '#,##0.00'
+    const total = ws[XLSX.utils.encode_cell({ r: row, c: totalCol })]
+    if (total) total.z = '#,##0.00'
+    const dt = ws[XLSX.utils.encode_cell({ r: row, c: dateCol })]
+    if (dt) dt.z = 'yyyy-mm-dd'
+    const rd = ws[XLSX.utils.encode_cell({ r: row, c: receivedCol })]
+    if (rd) rd.z = 'yyyy-mm-dd'
+  }
+
+  const giftLabel = ghGiftId.value
+    ? (giftOptions.value.find((g) => g.value === ghGiftId.value)?.label || 'Selected gift')
+    : 'All gifts'
+
+  const summary = [
+    ['Gift History Report'],
+    [],
+    ['Date From', ghDateFrom.value || 'All'],
+    ['Date To', ghDateTo.value || 'All'],
+    ['Gift', giftLabel],
+    ['Generated', dayjs().format('YYYY-MM-DD HH:mm')],
+    [],
+    ['Total Received (units)', Number(giftSummary.total_received) || 0],
+    ['Total Issued (units)', Number(giftSummary.total_issued) || 0],
+    ['Received Value (Rs.)', Number(giftSummary.value_received) || 0],
+    ['Issued Value (Rs.)', Number(giftSummary.value_issued) || 0],
+    ['Movements', rows.length],
+  ]
+  const wsSummary = XLSX.utils.aoa_to_sheet(summary)
+  wsSummary['!cols'] = [{ wch: 26 }, { wch: 32 }]
+  // Format the money values in the summary
+  for (const r of [9, 10]) {
+    const cell = wsSummary[XLSX.utils.encode_cell({ r, c: 1 })]
+    if (cell) cell.z = '#,##0.00'
+  }
+
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Gift History')
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary')
+  XLSX.writeFile(wb, `gift-history-${ghDateFrom.value || 'start'}_to_${ghDateTo.value || 'today'}.xlsx`)
+  message.success(`Exported ${rows.length} movement(s) to Excel`)
 }
 
 onMounted(() => {
